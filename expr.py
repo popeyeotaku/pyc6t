@@ -47,6 +47,43 @@ class Leaf(Node):
     linenum: int
 
 
+def confold(node: Node) -> Node:
+    """If the node can be constant folded, return the folded version. Else,
+    return the node unmodified.
+    """
+    if any(map(lambda n: n.label != 'con', node.children)):
+        return node
+    children = [word(child.value) for child in node.children]
+    match node.label:
+        case 'add':
+            result = word(sum(children))
+        case 'sub':
+            result = word(children[0] - children[1])
+        case 'mult':
+            result = word(children[0] * children[1])
+        case 'div':
+            result = word(children[0] // children[1])
+        case 'mod':
+            result = word(children[0] % children[1])
+        case 'and':
+            result = word(children[0] & children[1])
+        case 'or':
+            result = word(children[0] | children[1])
+        case 'eor':
+            result = word(children[0] ^ children[1])
+        case 'lshift':
+            result = word(children[0] << children[1])
+        case 'rshift':
+            result = word(children[0] >> children[1])
+        case 'neg':
+            result = word(-children[0])
+        case 'compl':
+            result = word(~children[0])
+        case _:
+            return Node
+    return Leaf('con', node.linenum, [Int6], [], result)
+
+
 def build(parser: Parser, linenum: int, label: str | None,
           children: list[Node]) -> Node:
     """Construct a new non-leaf node."""

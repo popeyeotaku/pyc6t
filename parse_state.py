@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import Callable
+from typing import Callable, NoReturn
 from lexer import Token, Tokenizer
 from symtab import Symbol
 import util
@@ -58,7 +58,7 @@ class Parser:
         """Print an error message."""
         util.error(self, msg, line)
 
-    def crash(self, msg: str, line: int | None = None) -> None:
+    def crash(self, msg: str, line: int | None = None) -> NoReturn:
         """Print an error message and crash the compiler."""
         util.error(self, msg, line)
         raise util.CompilerCrash
