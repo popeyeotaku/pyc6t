@@ -17,10 +17,11 @@ class Parser:
     asm: str = ''
     localscope: bool = False
     curstatic: int = 0
-    brkstk = list[str]
-    contstk = list[str]
-    casestk = list[dict[int, str]]
-    defaultstk = list[str | None]
+    brkstk: list[str] = field(default_factory=list)
+    contstk:list[str] = field(default_factory=list)
+    casestk:list[dict[int, str]] = field(default_factory=list)
+    defaultstk:list[str | None] = field(default_factory=list)
+    curseg:str = ''
 
     def nextstatic(self) -> str:
         """Return the next static label."""

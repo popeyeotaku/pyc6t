@@ -1,7 +1,7 @@
 """C6T - C version 6 by Troy - Specifier Parsing and Support Code"""
 
 from typing import Callable
-from assembly import pseudo
+from assembly import goseg, pseudo
 from expr import conexpr
 from lexer import Token
 from parse_state import Parser
@@ -143,6 +143,7 @@ def datadef(parser: Parser, name: str, typestr: TypeString) -> None:
     """
     if parser.peek().label in (',', ';'):
         # No initializer
+        goseg(parser, 'bss')
         pseudo(parser, f'common {name}, {tysize(typestr)}')
     else:
         # Initializer

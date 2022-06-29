@@ -40,3 +40,14 @@ def fasm(parser, line: str, flag: bool) -> None:
 def asmexpr(parser: Parser, node: Node) -> None:
     """Assemble an expression tree."""
     # TODO: assemble expressions
+
+
+def goseg(parser: Parser, segment: str) -> str:
+    """Enter a new segment, returning the old one.
+    """
+    oldseg = parser.curseg
+    if parser.curseg != segment:
+        if segment != '':
+            pseudo(parser, segment)
+        parser.curseg = segment
+    return oldseg
