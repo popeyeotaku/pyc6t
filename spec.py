@@ -1,11 +1,12 @@
 """C6T - C version 6 by Troy - Specifier Parsing and Support Code"""
 
 from typing import Callable
+from assembly import pseudo
 from expr import conexpr
 from lexer import Token
 from parse_state import Parser
-from symtab import StorageClass
-from type6 import BaseType, Func6, Int6, Point6, TypeElem, TypeString
+from symtab import StorageClass, Symbol
+from type6 import BaseType, Func6, Int6, Point6, TypeElem, TypeString, tysize
 
 
 def dostruct(parser: Parser) -> int:
@@ -65,7 +66,7 @@ def spec(parser: Parser, basetype: TypeElem) -> tuple[str | None, TypeString, li
             typestr = [basetype]
             params = []
     while True:
-        if token.match('('):
+        if parser.match('('):
             typestr.insert(0, 'func')
 
             def addparam(parser: Parser, token: Token):
@@ -82,6 +83,7 @@ def spec(parser: Parser, basetype: TypeElem) -> tuple[str | None, TypeString, li
                 size = 1
             else:
                 size = conexpr(parser)
+                parser.need(']')
             typestr.insert(0, TypeElem('array', size))
         else:
             break
@@ -116,7 +118,7 @@ def specline(parser: Parser, needtypeclass: bool,
             parser.error('missing declarator')
             return True
         count += 1
-        return callback(name, storage, typestr, params, count)
+        return callback(parser, name, storage, typestr, params, count)
 
     parser.list(';', dospec)
     return True
@@ -128,11 +130,29 @@ def funcdef(parser: Parser, name: str, typestr: TypeString,
     # TODO: function definition
 
 
+def datainit(parser: Parser, name: str, typestr: TypeString) -> TypeString:
+    """Handle a data initializer, returning a typestring that may be modified.
+    """
+    # TODO: initializers
+    return typestr
+
+
 def datadef(parser: Parser, name: str, typestr: TypeString) -> None:
     """Handles an external data definition, possibly followed by an
     initializer.
     """
-    # TODO: data definition
+    if parser.peek().label in (',', ';'):
+        # No initializer
+        pseudo(parser, f'common {name}, {tysize(typestr)}')
+    else:
+        # Initializer
+        typestr = datainit(parser, name, typestr)
+    symbol = Symbol(
+        name,
+        'extern',
+        typestr.copy()
+    )
+    parser.symtab[name] = symbol
 
 
 def extdef(parser: Parser) -> bool:

@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable
 from parse_state import Parser
 from symtab import Symbol
-from type6 import Char6, Double6, Func6, Int6, TypeElem, TypeString
+from type6 import Char6, Double6, Func6, Int6, TypeElem, TypeString, tysize
 from util import word
 from lexer import Token
 
@@ -88,9 +88,15 @@ def build(parser: Parser, linenum: int, label: str | None,
           children: list[Node]) -> Node:
     """Construct a new non-leaf node."""
     # TODO: build
+    if label == 'sizeof':
+        return Leaf('con', children[0].linenum,
+                    [Int6], [], tysize(children[0].typestr))
+
     if label is None:
         return children[0]
-    return Node(label, linenum, [Int6], children)
+
+    node = Node(label, linenum, [Int6], children)
+    return confold(node)
 
 
 def binary(parser: Parser, lesser: Callable[[Parser], Node],
@@ -234,7 +240,21 @@ def exp2(parser: Parser) -> Node:
 def domember(parser: Parser, linenum: int, node: Node, label: str,
              member: str) -> Node:
     """Perform a '.' or '->' operation."""
-    # TODO: domember
+    if member not in parser.tagtab:
+        parser.error(f'undefined member tag {member}')
+        return node
+    tag = parser.tagtab[member]
+    if tag.storage != 'member':
+        parser.error(f'tag {member} not a member')
+        return node
+    if label == '->':
+        label = 'arrow'
+    else:
+        label = 'dot'
+    return build(parser, linenum, label, [node, Leaf(
+        'name', linenum, tag.typestr.copy(), [],
+        tag.offset
+    )])
 
 
 def exp1(parser: Parser) -> Node:
