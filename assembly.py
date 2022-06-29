@@ -1,7 +1,7 @@
 """C6T - C version 6 by Troy - Assembly Supports"""
 
 from string import whitespace
-from expr import Node
+from expr import Leaf, Node
 from parse_state import Parser
 
 
@@ -40,6 +40,12 @@ def fasm(parser, line: str, flag: bool) -> None:
 def asmexpr(parser: Parser, node: Node) -> None:
     """Assemble an expression tree."""
     # TODO: assemble expressions
+    for child in node.children:
+        asmexpr(parser, child)
+    if isinstance(node, Leaf):
+        asm(parser, f'{node.label} {node.value}')
+    else:
+        asm(parser, node.label)
 
 
 def goseg(parser: Parser, segment: str) -> str:

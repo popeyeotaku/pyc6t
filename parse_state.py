@@ -22,6 +22,28 @@ class Parser:
     casestk:list[dict[int, str]] = field(default_factory=list)
     defaultstk:list[str | None] = field(default_factory=list)
     curseg:str = ''
+    
+    def cleartab(self, table:dict[str, Symbol]) -> None:
+        """Clear locals from a given table."""
+        for name, symbol in table.copy().items():
+            if symbol.local:
+                if symbol.undefined:
+                    self.error(f'undefined symbol {name}')
+                del table[name]
+    
+    def exitlocal(self) -> None:
+        """Exit local scope."""
+        assert self.localscope
+        
+        self.brkstk.clear()
+        self.contstk.clear()
+        self.casestk.clear()
+        self.defaultstk.clear()
+        
+        self.cleartab(self.symtab)
+        self.cleartab(self.tagtab)
+        
+        self.localscope = False
 
     def nextstatic(self) -> str:
         """Return the next static label."""
@@ -99,7 +121,9 @@ class Parser:
             if not callback(self, next(self.tokenizer)):
                 break
             if not self.peek().label == endlabel:
-                self.need(seplabel, msg=errmsg)
+                if not self.need(seplabel, msg=errmsg):
+                    self.termskip()
+                    break
 
     def termskip(self) -> None:
         """Skip to a terminal input token, used with errskip."""

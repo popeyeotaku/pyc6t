@@ -1,12 +1,14 @@
 """C6T - C version 6 by Troy - Specifier Parsing and Support Code"""
 
 from typing import Callable
-from assembly import goseg, pseudo
+from assembly import asm, deflab, fasm, goseg, pseudo
 from expr import conexpr
 from lexer import Token
 from parse_state import Parser
+from statement import statement
 from symtab import StorageClass, Symbol
-from type6 import BaseType, Func6, Int6, Point6, TypeElem, TypeString, tysize
+from type6 import BaseType, Double6, Func6, Int6, Point6, TypeElem, TypeString, tysize
+import util
 
 
 def dostruct(parser: Parser) -> int:
@@ -67,7 +69,7 @@ def spec(parser: Parser, basetype: TypeElem) -> tuple[str | None, TypeString, li
             params = []
     while True:
         if parser.match('('):
-            typestr.insert(0, 'func')
+            typestr.insert(0, Func6)
 
             def addparam(parser: Parser, token: Token):
                 """Add a parameter to the parameter list.
@@ -76,6 +78,7 @@ def spec(parser: Parser, basetype: TypeElem) -> tuple[str | None, TypeString, li
                     parser.error('missing parameter name')
                 assert isinstance(token.value, str)
                 params.append(token.value)
+                return True
 
             parser.list(')', addparam)
         elif parser.match('['):
@@ -127,7 +130,112 @@ def specline(parser: Parser, needtypeclass: bool,
 def funcdef(parser: Parser, name: str, typestr: TypeString,
             params: list[str]) -> None:
     """Handles an external function definition."""
-    # TODO: function definition
+
+    goseg(parser, 'text')
+    deflab(parser, '_' + name)
+    pseudo(parser, f'export _{name}')
+
+    functype = typestr
+
+    parser.symtab[name] = Symbol(
+        name, 'extern', functype
+    )
+
+    parser.localscope = True
+    paramtypes = {}
+    for paramname in params:
+        paramtypes[paramname] = [Int6].copy()
+
+    def paramcallback(parser: Parser, name: str, storage: StorageClass,
+                      typestr: TypeString, params: list[str],
+                      count: int) -> bool:
+        """Add the final type of a parameter.
+        """
+        if name not in paramtypes:
+            parser.error(f'parameter {name} not listed in function '
+                         'parameters')
+            return True
+        match typestr[0].type:
+            case 'char':
+                typestr[0] = Int6
+            case 'float':
+                typestr[0] = Double6
+            case 'array':
+                typestr[0] = Point6
+            case 'func' | 'struct':
+                parser.error('function and struct types not passable')
+                return True
+        paramtypes[name] = typestr.copy()
+        return True
+    while specline(parser, True, paramcallback):
+        pass
+    offset = util.PARAM_OFFSET
+    for paramname, typestr in paramtypes.items():
+        if paramname in parser.symtab:
+            parser.error(f'name {paramname} already defined')
+            continue
+        symbol = Symbol(
+            paramname,
+            'auto',
+            typestr.copy(),
+            offset,
+            local=True
+        )
+        parser.symtab[paramname] = symbol
+        offset = util.word(offset + tysize(typestr))
+
+    parser.need('{')
+
+    auto_offset = 0
+    regs = 0
+
+    def localcallback(parser: Parser, name: str, storage: StorageClass,
+                      typestr: TypeString, params: list[str],
+                      count: int) -> bool:
+        nonlocal auto_offset, regs
+        if storage == 'register' and regs >= util.MAXREGS:
+            storage = 'auto'
+        match storage:
+            case 'auto':
+                auto_offset = util.word(auto_offset - tysize(typestr))
+                offset = auto_offset
+            case 'static':
+                offset = parser.nextstatic()
+                goseg('bss')
+                deflab(parser, offset)
+                pseudo(parser, f'ds {tysize(typestr)}')
+            case 'register':
+                offset = regs
+                regs += 1
+            case _:
+                offset = None
+        symbol = Symbol(
+            name,
+            storage,
+            typestr.copy(),
+            offset,
+            local=True
+        )
+        if name in parser.symtab:
+            parser.error(f'redefined local {name}')
+        else:
+            parser.symtab[name] = symbol
+    while specline(parser, True, localcallback):
+        pass
+
+    if auto_offset != 0:
+        asm(parser, f'dropstk {util.word(-auto_offset)}')
+
+    asm(parser, f'useregs {regs}')
+
+    while not parser.match('}'):
+        parser.eoferror()
+        statement(parser, functype[1].floating)
+
+    asm(parser, 'push 0')
+    fasm(parser, 'ret', functype[1].floating)
+
+    parser.exitlocal()
 
 
 def datainit(parser: Parser, name: str, typestr: TypeString) -> TypeString:
@@ -144,7 +252,7 @@ def datadef(parser: Parser, name: str, typestr: TypeString) -> None:
     if parser.peek().label in (',', ';'):
         # No initializer
         goseg(parser, 'bss')
-        pseudo(parser, f'common {name}, {tysize(typestr)}')
+        pseudo(parser, f'common _{name}, {tysize(typestr)}')
     else:
         # Initializer
         typestr = datainit(parser, name, typestr)
@@ -154,6 +262,7 @@ def datadef(parser: Parser, name: str, typestr: TypeString) -> None:
         typestr.copy()
     )
     parser.symtab[name] = symbol
+    pseudo(parser, f'export _{name}')
 
 
 def extdef(parser: Parser) -> bool:

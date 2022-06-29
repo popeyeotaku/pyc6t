@@ -245,7 +245,8 @@ def exp2(parser: Parser) -> Node:
         '~': 'compl',
         '++': 'preinc',
         '--': 'predec',
-        'sizeof': 'sizeof'
+        'sizeof': 'sizeof',
+        '*': 'deref'
     }
     token = parser.match(*labels.keys())
     if token:

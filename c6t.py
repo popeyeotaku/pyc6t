@@ -18,6 +18,12 @@ def compile_c6t(source: str) -> str:
 
 if __name__ == "__main__":
     testsrc = """
-int foo[2+2], bar[4], foobar[sizeof(foo) + sizeof(bar)];
+
+foobar(foo, bar)
+int foo[];
+{
+    while (bar--)
+        puts(*foo++);
+}
 """
     print(compile_c6t(testsrc))

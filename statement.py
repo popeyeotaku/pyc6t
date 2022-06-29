@@ -162,7 +162,7 @@ def parenexpr(parser: Parser, label: str) -> None:
     node = expression(parser)
     parser.need(')')
     asmexpr(parser, node)
-    parser.asm(f'brz {label}')
+    asm(parser, f'brz {label}')
 
 
 def doexpr(parser: Parser):
@@ -201,7 +201,7 @@ def doswitch(parser: Parser, node: Node, cases: dict[int, str],
     goseg(parser, 'data')
     tablab = parser.nextstatic()
     deflab(parser, tablab)
-    for con, label in cases.values():
+    for con, label in cases.items():
         pseudo(parser, f'dw {con}, {label}')
     goseg(parser, 'code')
     asmexpr(parser, node)
