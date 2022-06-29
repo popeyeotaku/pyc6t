@@ -1,8 +1,11 @@
 """C6T - C version 6 by Troy - Parser State Class"""
 
+from __future__ import annotations
 from dataclasses import dataclass, field
+from typing import Callable
 from lexer import Token, Tokenizer
 from symtab import Symbol
+import util
 
 
 @dataclass
@@ -12,6 +15,15 @@ class Parser:
     symtab: dict[str, Symbol] = field(default_factory=dict)
     tagtab: dict[str, Symbol] = field(default_factory=dict)
     asm: str = ''
+    localscope: bool = False
+
+    def __post_init__(self):
+        self.errs = 0
+
+    @property
+    def errcount(self) -> int:
+        """Return the number of errors."""
+        return self.errs + self.tokenizer.errcount
 
     @property
     def curline(self) -> int:
@@ -24,3 +36,64 @@ class Parser:
         None.
         """
         return self.tokenizer.match(*labels)
+
+    def peek(self) -> Token:
+        """Return the next token, also placing it back in the input stream to
+        be read again.
+        """
+        return self.tokenizer.peek()
+
+    def unsee(self, token: Token) -> None:
+        """Return the given token to the input stream, to be seen again."""
+        self.tokenizer.unsee(token)
+
+    def error(self, msg: str, line: int | None = None) -> None:
+        """Print an error message."""
+        util.error(self, msg, line)
+
+    def crash(self, msg: str, line: int | None = None) -> None:
+        """Print an error message and crash the compiler."""
+        util.error(self, msg, line)
+        raise util.CompilerCrash
+
+    def need(self, *labels: str, msg: str = 'syntax error') -> None | Token:
+        """If we don't match any of the labels, give the error. If we do,
+        return the token matched.
+        """
+        token = self.match(*labels)
+        if token:
+            return token
+        self.error(msg)
+        return None
+
+    def eoferror(self):
+        """If we match an end of file, crash."""
+        if self.match('eof'):
+            self.crash('unexpected end of file')
+
+    def list(self, endlabel: str,
+             callback: Callable[[Parser, Token], bool],
+             seplabel: str = ',',
+             errmsg: str | None = 'syntax error') -> None:
+        """Process a seperated list of elements. After seeing each
+        element token, run the callback. If the callback returns False, end
+        the list search immediately.
+        """
+        while not self.match(endlabel):
+            self.eoferror()
+            if not callback(self, next(self.tokenizer)):
+                break
+            if not self.peek().label == endlabel:
+                self.need(seplabel, msg=errmsg)
+
+    def termskip(self) -> None:
+        """Skip to a terminal input token, used with errskip."""
+        while self.peek().label not in (';', '{', '}', 'eof'):
+            next(self.tokenizer)
+
+    def errskip(self, msg: str, line: int | None = None) -> None:
+        """Print the error message and skip to the next terminal input
+        token.
+        """
+        self.error(msg, line)
+        self.termskip()

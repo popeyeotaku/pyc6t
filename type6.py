@@ -15,6 +15,15 @@ class TypeElem:
     type: BaseType | ModType
     size: int = 0
 
+    def __eq__(self, __o: object) -> bool:
+        if isinstance(__o, TypeElem):
+            if __o.type != self.type:
+                return False
+            if self.sized and __o.sized and self.size != __o.size:
+                return False
+            return True
+        return NotImplemented
+
     def tysize(self) -> int:
         """Return the size of the element, in bytes, or element count for an
         array.
@@ -29,22 +38,28 @@ class TypeElem:
             case 'double':
                 return 8
             case _:
+                assert self.sized
                 return self.size
 
     @cached_property
-    def pointer(self):
+    def pointer(self) -> bool:
         """Returns a flag for if this is a pointer type."""
         return self.type in ('point', 'array')
 
     @cached_property
-    def integral(self):
+    def integral(self) -> bool:
         """Returns a flag for if this is an integral type."""
         return self.type in ('int', 'char')
 
     @cached_property
-    def floating(self):
+    def floating(self) -> bool:
         """Returns a flag for if this is a floating type."""
         return self.type in ('float', 'double')
+
+    @cached_property
+    def sized(self) -> bool:
+        """Returns a flag for if this type has a custom size."""
+        return self.type in ('struct', 'array')
 
 
 Int6 = TypeElem('int')

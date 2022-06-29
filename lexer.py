@@ -21,6 +21,12 @@ class Tokenizer(Iterable[Token]):
         self._i = 0
         self._countlines = True
         self._peeked = []  # type:list[Token]
+        self.errs = 0
+
+    @property
+    def errcount(self):
+        """Return the number of errors."""
+        return self.errs
 
     def unsee(self, token: Token):
         """Return the given token to the input stream to be seen again."""
@@ -69,4 +75,4 @@ class Tokenizer(Iterable[Token]):
         return Token(label, self.curline, value)
 
     def __next__(self) -> Token:
-        return self._token('EOF')
+        return self._token('eof')

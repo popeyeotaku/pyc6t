@@ -9,7 +9,7 @@ def compile_c6t(source: str) -> str:
     source = preproc.preproc(source)
     parser = Parser(source)
 
-    while not parser.match('EOF'):
+    while not parser.match('eof'):
         spec.extdef(parser)
 
     return parser.asm
