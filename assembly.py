@@ -1,6 +1,7 @@
 """C6T - C version 6 by Troy - Assembly Supports"""
 
 from string import whitespace
+from expr import Node
 from parse_state import Parser
 
 
@@ -26,3 +27,16 @@ def pseudo(parser, line: str) -> None:
     if line[0] == '.':
         line = line[1:]
     asm(parser, '.' + line)
+
+
+def fasm(parser, line: str, flag: bool) -> None:
+    """Assemble the instruction, prepending a 'f' if the flag is True.
+    """
+    if flag:
+        line = 'f' + line.lstrip()
+    asm(parser, line)
+
+
+def asmexpr(parser: Parser, node: Node) -> None:
+    """Assemble an expression tree."""
+    # TODO: assemble expressions

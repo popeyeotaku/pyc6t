@@ -47,6 +47,31 @@ class Leaf(Node):
     linenum: int
 
 
+
+def expression(parser: Parser, seecommas: bool = True) -> Node:
+    """Parse an expression."""
+    if seecommas:
+        node = exp15(parser)
+    else:
+        node = exp14(parser)
+    # Flush pending conversions
+    return build(parser, node.linenum, None, [node])
+
+
+def conexpr(parser: Parser, seecommas: bool = True, default: int = 1) -> int:
+    """Parse an expression. If the end result is not an integer constant,
+    return the defalut number and report an error. Else, return the constant
+    value.
+    """
+    node = expression(parser, seecommas)
+    if node.label != 'con':
+        parser.error('bad constant expression', node.linenum)
+        return default
+    assert isinstance(node, Leaf) and isinstance(node.value, int)
+    return node.value
+
+
+
 def confold(node: Node) -> Node:
     """If the node can be constant folded, return the folded version. Else,
     return the node unmodified.
@@ -332,26 +357,3 @@ def exp1(parser: Parser) -> Node:
                 assert isinstance(token.value, str)
                 node = domember(parser, token.linenum, node, label,
                                 token.value)
-
-
-def expression(parser: Parser, seecommas: bool = True) -> Node:
-    """Parse an expression."""
-    if seecommas:
-        node = exp15(parser)
-    else:
-        node = exp14(parser)
-    # Flush pending conversions
-    return build(parser, node.linenum, None, [node])
-
-
-def conexpr(parser: Parser, seecommas: bool = True, default: int = 1) -> int:
-    """Parse an expression. If the end result is not an integer constant,
-    return the defalut number and report an error. Else, return the constant
-    value.
-    """
-    node = expression(parser, seecommas)
-    if node.label != 'con':
-        parser.error('bad constant expression', node.linenum)
-        return default
-    assert isinstance(node, Leaf) and isinstance(node.value, int)
-    return node.value

@@ -17,6 +17,10 @@ class Parser:
     asm: str = ''
     localscope: bool = False
     curstatic: int = 0
+    brkstk = list[str]
+    contstk = list[str]
+    casestk = list[dict[int, str]]
+    defaultstk = list[str | None]
 
     def nextstatic(self) -> str:
         """Return the next static label."""
@@ -53,6 +57,9 @@ class Parser:
     def unsee(self, token: Token) -> None:
         """Return the given token to the input stream, to be seen again."""
         self.tokenizer.unsee(token)
+
+    def __next__(self) -> Token:
+        return next(self.tokenizer)
 
     def error(self, msg: str, line: int | None = None) -> None:
         """Print an error message."""
