@@ -16,6 +16,13 @@ class Parser:
     tagtab: dict[str, Symbol] = field(default_factory=dict)
     asm: str = ''
     localscope: bool = False
+    curstatic: int = 0
+
+    def nextstatic(self) -> str:
+        """Return the next static label."""
+        self.curstatic += 1
+        assert self.curstatic >= 0
+        return f"L{self.curstatic}"
 
     def __post_init__(self):
         self.errs = 0
