@@ -3,7 +3,7 @@
 from defaulter import Flags
 
 noconv = Flags(
-    'comma', 'logor', 'logand'
+    'comma', 'logor', 'logand', 'postinc', 'preinc', 'postdec', 'predec'
 )
 
 assign = Flags(
@@ -38,4 +38,8 @@ needlval = Flags(
 
 islval = Flags(
     'dot', 'arrow', 'deref', 'name'
+)
+
+nopointconv = Flags(
+    *assign.keys(), *compare.keys()
 )

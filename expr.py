@@ -6,9 +6,10 @@ from dataclasses import dataclass, field
 from typing import Any, Callable
 from parse_state import Parser
 from symtab import Symbol
-from type6 import Char6, Double6, Func6, Int6, TypeElem, TypeString, tysize
+from type6 import Char6, Double6, Func6, Int6, Point6, TypeElem, TypeString, tysize
 from util import word
 from lexer import Token
+import opinfo
 
 
 @dataclass
@@ -42,7 +43,6 @@ class Leaf(Node):
     linenum: int
 
 
-
 def expression(parser: Parser, seecommas: bool = True) -> Node:
     """Parse an expression."""
     if seecommas:
@@ -64,7 +64,6 @@ def conexpr(parser: Parser, seecommas: bool = True, default: int = 1) -> int:
         return default
     assert isinstance(node, Leaf) and isinstance(node.value, int)
     return node.value
-
 
 
 def confold(node: Node) -> Node:
@@ -104,6 +103,38 @@ def confold(node: Node) -> Node:
     return Leaf('con', node.linenum, [Int6], [], result)
 
 
+def floating(nodes: list[Node]) -> bool:
+    """Return a flag for if any of the nodes are floating type."""
+    return any(map(lambda n: n.typestr[0].floating, nodes))
+
+
+def pointer(nodes: list[Node]) -> bool:
+    """Return a flag for if any of the nodes are pointer type."""
+    return any(map(lambda n: n.typestr[0].pointer, nodes))
+
+
+def doarray(node: Node) -> Node:
+    """Convert an array type node to &->node of type pointer.
+    """
+    if node.label != 'addr' and node.typestr[0].type == 'array':
+        node = Node('addr', node.linenum,
+                    [Point6] + node.typestr[1:],
+                    node)
+    return node
+
+
+def dofunc(node: Node) -> Node:
+    """Convert a function type node to addr to pointer to function.
+    """
+    if node.typestr[0].type == 'func':
+        node = Node(
+            'addr',
+            node.linenum,
+            [Point6] + node.typestr,
+            node)
+    return node
+
+
 def build(parser: Parser, linenum: int, label: str | None,
           children: list[Node]) -> Node:
     """Construct a new non-leaf node."""
@@ -115,13 +146,116 @@ def build(parser: Parser, linenum: int, label: str | None,
     if label is None:
         return children[0]
 
-    if len(children) == 1:
-        typestr = children[0].typestr.copy()
-    else:
-        typestr = [Int6]
-    
+    if label == 'call':
+        if not children[0].typestr[0].type == 'func':
+            parser.error('call of non-function')
+        node = Node(
+            'call',
+            linenum,
+            children[0].typestr[1:],
+            children
+        )
+        return node
+
+    match len(children):
+        case 1:
+            typestr = children[0].typestr.copy()
+        case 0:
+            typestr = [Int6]
+        case _:
+            if floating(children):
+                typestr = [Double6]
+            elif pointer(children):
+                for child in children:
+                    if pointer([child]):
+                        typestr = child.typestr.copy()
+                        break
+            else:
+                typestr = [Int6]
     node = Node(label, linenum, typestr, children)
-    
+
+    for i, child in enumerate(node.children[1:]):
+        node.children[i+1] = dofunc(doarray(child))
+
+    if label != 'addr':
+        node.children[0] = doarray(node.children[0])
+        if label != 'call':
+            node.children[0] = dofunc(node.children[0])
+
+    if opinfo.needlval[label] and not opinfo.islval[children[0].label]:
+        parser.error('missing required lval')
+
+    match label:
+        case 'toint':
+            node.typestr = [Int6]
+            return node
+        case 'toflt':
+            node.typestr = [Double6]
+            return node
+        case 'cond':
+            # TODO: handle ... ? ... : ...
+            raise NotImplementedError
+        case 'deref':
+            if children[0].label == 'addr':
+                return children[0]
+            if not typestr[0].pointer:
+                parser.error('dereference of non-pointer')
+            else:
+                node.typestr = node.typestr[1:]
+        case 'addr':
+            if children[0].label == 'deref':
+                node = node.children[0]
+            node.typestr.insert(0, Point6)
+        case 'postinc' | 'preinc' | 'postdec' | 'preinc':
+            del node.children[1:]
+            if pointer(node.children):
+                size = tysize(node.children[0].typestr)
+            else:
+                size = 1
+            node.children.append(Leaf(
+                'con', linenum, [Int6], [],
+                size)
+            )
+
+    if len(children) == 2 and not opinfo.noconv[node.label]:
+        if floating(node.children):
+            for i, child in enumerate(node.children):
+                if not child.typestr[0].floating:
+                    node.children[i] = build(
+                        parser, linenum, 'toflt', [child]
+                    )
+        elif pointer(node.children):
+            if not opinfo.nopointconv[node.label]:
+                size = 1
+                for child in node.children:
+                    if child.typestr[0].pointer:
+                        size = tysize(child.typestr[1:])
+                        break
+                for i, child in enumerate(node.children):
+                    if not child.typestr[0].pointer:
+                        node.children[i] = build(
+                            parser,
+                            linenum,
+                            'mult',
+                            [child,
+                             Leaf(
+                                 'con',
+                                 linenum,
+                                 [Int6],
+                                 [],
+                                 size
+                             )]
+                        )
+
+    if opinfo.isint[node.label]:
+        node.typestr = [Int6]
+
+    if opinfo.lessgreat[node.label] and pointer(node.children) and node.label[0] != 'u':
+        node.label = 'u' + node.label
+
+    if floating(node.children + [node]) and not opinfo.yesflt:
+        parser.error("illegal operation for floating type")
+
     return confold(node)
 
 
