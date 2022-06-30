@@ -19,11 +19,12 @@ def compile_c6t(source: str) -> str:
 if __name__ == "__main__":
     TESTSRC = """
 
-foobar(foo, bar)
+foobar(foo, bar, puts)
+int (*puts)();
 int foo[];
 {
     while (bar--)
-        puts(*foo++);
+        (*puts)(*foo++);
 }
 """
     print(compile_c6t(TESTSRC))

@@ -76,7 +76,7 @@ def asmnode(parser: Parser, node: Node) -> None:
                 asmnode(parser, arg)
                 rval(parser, arg)
             asmnode(parser, node.children[0])
-            rval(parser, node.children[0])
+            # rval(parser, node.children[0])
             asm(parser, f'call {len(node.children[1:])}')
             return
         case 'con' | 'fcon':

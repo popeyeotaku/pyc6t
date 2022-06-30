@@ -47,7 +47,7 @@ def typeclass(parser: Parser) -> tuple[BaseType | None, StorageClass | None]:
     return storage, grabtype(parser)
 
 
-def spec(parser: Parser, basetype: TypeElem) -> tuple[str | None, TypeString, list[str]]:
+def _spec(parser: Parser) -> tuple[str | None, TypeString, list[str]]:
     """Process a single specifier, returning its name, type string, and
     parameter names. If the name is None, then we didn't see a specifier.
     """
@@ -56,20 +56,20 @@ def spec(parser: Parser, basetype: TypeElem) -> tuple[str | None, TypeString, li
         return None, [], []
     match token.label:
         case '*':
-            name, typestr, params = spec(parser, basetype)
-            typestr.insert(0, Point6)
+            name, typestr, params = _spec(parser)
+            typestr.append(Point6)
             return name, typestr, params
         case '(':
-            name, typestr, params = spec(parser, basetype)
+            name, typestr, params = _spec(parser)
             parser.need(')')
         case 'name':
             assert isinstance(token.value, str)
             name = token.value
-            typestr = [basetype]
+            typestr = []
             params = []
     while True:
         if parser.match('('):
-            typestr.insert(0, Func6)
+            typestr.append(Func6)
 
             def addparam(parser: Parser, token: Token):
                 """Add a parameter to the parameter list.
@@ -87,11 +87,19 @@ def spec(parser: Parser, basetype: TypeElem) -> tuple[str | None, TypeString, li
             else:
                 size = conexpr(parser)
                 parser.need(']')
-            typestr.insert(0, TypeElem('array', size))
+            typestr.append(TypeElem('array', size))
         else:
             break
 
     return name, typestr, params
+
+
+def spec(parser: Parser, basetype: TypeElem) -> tuple[str | None, TypeString, list[str]]:
+    """Process a single specifier, returning its name, type string, and
+    parameter names. If the name is None, then we didn't see a specifier.
+    """
+    name, typestr, params = _spec(parser)
+    return name, typestr + [basetype], params
 
 
 def specline(parser: Parser, needtypeclass: bool,
