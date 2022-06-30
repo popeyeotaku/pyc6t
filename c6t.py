@@ -17,7 +17,7 @@ def compile_c6t(source: str) -> str:
 
 
 if __name__ == "__main__":
-    testsrc = """
+    TESTSRC = """
 
 foobar(foo, bar)
 int foo[];
@@ -26,4 +26,4 @@ int foo[];
         puts(*foo++);
 }
 """
-    print(compile_c6t(testsrc))
+    print(compile_c6t(TESTSRC))

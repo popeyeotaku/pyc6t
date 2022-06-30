@@ -34,11 +34,6 @@ class Node(collections.abc.MutableSequence):
     def __delitem__(self, key: int) -> None:
         del self.children[key]
 
-    @property
-    def islval(self) -> bool:
-        """Return flag for if this node is an lval."""
-        return self.label in ('deref', 'name', 'dot', 'arrow')
-
 
 @dataclass
 class Leaf(Node):
@@ -120,7 +115,13 @@ def build(parser: Parser, linenum: int, label: str | None,
     if label is None:
         return children[0]
 
-    node = Node(label, linenum, [Int6], children)
+    if len(children) == 1:
+        typestr = children[0].typestr.copy()
+    else:
+        typestr = [Int6]
+    
+    node = Node(label, linenum, typestr, children)
+    
     return confold(node)
 
 

@@ -201,7 +201,7 @@ def funcdef(parser: Parser, name: str, typestr: TypeString,
                 offset = auto_offset
             case 'static':
                 offset = parser.nextstatic()
-                goseg('bss')
+                goseg(parser, 'bss')
                 deflab(parser, offset)
                 pseudo(parser, f'ds {tysize(typestr)}')
             case 'register':
