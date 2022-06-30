@@ -17,8 +17,9 @@ def statement(parser: Parser, retflt: bool):
             if parser.match(':'):
                 addgoto(parser, token.value)
                 statement(parser, retflt)
-            parser.unsee(token)
-            doexpr(parser)
+            else:
+                parser.unsee(token)
+                doexpr(parser)
         case 'if':
             labfalse = parser.nextstatic()
             parenexpr(parser, labfalse)
@@ -45,6 +46,7 @@ def statement(parser: Parser, retflt: bool):
             lab = parser.nextstatic()
             parser.contstk.append(parser.nextstatic())
             parser.brkstk.append(parser.nextstatic())
+
             deflab(parser, lab)
             statement(parser, retflt)
             parser.need('while')
@@ -53,11 +55,13 @@ def statement(parser: Parser, retflt: bool):
             parser.need(';')
             asm(parser, f'jmp {lab}')
             deflab(parser, parser.brkstk[-1])
+
             parser.brkstk.pop()
             parser.contstk.pop()
         case 'for':
             parser.contstk.append(parser.nextstatic())
             parser.brkstk.append(parser.nextstatic())
+
             parser.need('(')
             if not parser.match(';'):
                 asmexpr(parser, expression(parser))
@@ -72,21 +76,30 @@ def statement(parser: Parser, retflt: bool):
             else:
                 update = expression(parser)
                 parser.need(')')
+
             statement(parser, retflt)
             if update:
                 asmexpr(parser, update)
             asm(parser, f'jmp {parser.contstk[-1]}')
             deflab(parser, parser.brkstk[-1])
+
+            parser.contstk.pop()
+            parser.brkstk.pop()
         case 'switch':
             parser.brkstk.append(parser.nextstatic())
+
             parser.casestk.append({})
             parser.defaultstk.append(None)
+
             parser.need('(')
             node = expression(parser)
             parser.need(')')
             statement(parser, retflt)
             doswitch(parser, node, parser.casestk.pop(),
                      parser.defaultstk.pop())
+
+            deflab(parser, parser.brkstk[-1])
+            parser.brkstk.pop()
         case 'case':
             con = conexpr(parser)
             parser.need(':')
@@ -109,6 +122,7 @@ def statement(parser: Parser, retflt: bool):
                 lab = parser.nextstatic()
                 parser.defaultstk[-1] = lab
                 deflab(parser, lab)
+            statement(parser, retflt)
         case 'break':
             parser.need(';')
             try:
@@ -205,7 +219,13 @@ def doswitch(parser: Parser, node: Node, cases: dict[int, str],
         pseudo(parser, f'dw {con}, {label}')
     goseg(parser, 'code')
     asmexpr(parser, node)
-    asm(parser, f'push {default}')
+    if default:
+        asm(parser, f'push {default}')
+    else:
+        try:
+            asm(parser, parser.brkstk[-1])
+        except IndexError:
+            parser.error('missing break for switch')
     asm(parser, f'push {len(cases)}')
     asm(parser, f'push {tablab}')
     asm(parser, 'jmp cswitch')

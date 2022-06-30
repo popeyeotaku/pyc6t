@@ -40,7 +40,6 @@ class Node(collections.abc.MutableSequence):
 class Leaf(Node):
     """A leaf expression node."""
     value: Any
-    linenum: int
 
 
 def expression(parser: Parser, seecommas: bool = True) -> Node:
@@ -103,12 +102,12 @@ def confold(node: Node) -> Node:
     return Leaf('con', node.linenum, [Int6], [], result)
 
 
-def floating(nodes: list[Node]) -> bool:
+def floating(*nodes: Node) -> bool:
     """Return a flag for if any of the nodes are floating type."""
     return any(map(lambda n: n.typestr[0].floating, nodes))
 
 
-def pointer(nodes: list[Node]) -> bool:
+def pointer(*nodes: Node) -> bool:
     """Return a flag for if any of the nodes are pointer type."""
     return any(map(lambda n: n.typestr[0].pointer, nodes))
 
@@ -138,13 +137,12 @@ def dofunc(node: Node) -> Node:
 def build(parser: Parser, linenum: int, label: str | None,
           children: list[Node]) -> Node:
     """Construct a new non-leaf node."""
-    # TODO: build
     if label == 'sizeof':
         return Leaf('con', children[0].linenum,
                     [Int6], [], tysize(children[0].typestr))
 
     if label is None:
-        return children[0]
+        return dofunc(doarray(children[0]))
 
     if label == 'call':
         if not children[0].typestr[0].type == 'func':
