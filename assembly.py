@@ -1,7 +1,7 @@
 """C6T - C version 6 by Troy - Assembly Supports"""
 
 from string import whitespace
-from expr import Leaf, Node
+from expr import Leaf, Node, floating
 from parse_state import Parser
 import opinfo
 from symtab import Symbol
@@ -69,8 +69,56 @@ def rval(parser: Parser, node: Node) -> None:
 
 def asmnode(parser: Parser, node: Node) -> None:
     """Assemble expression nodes recursively."""
+    # Special cases
+    if opinfo.assign[node.label]:
+        asmnode(parser, node.children[0])
+        if node.label != 'assign':
+            asm(parser, 'dup')
+            rval(parser, node.children[0])
+        asmnode(parser, node.children[1])
+        rval(parser, node.children[1])
+        if node.label != 'assign':
+            asm(parser, node.label.removeprefix('asn'))
+        if node[0].label == 'name':
+            assert isinstance(node[0], Leaf) and isinstance(node[0].value, Symbol)
+            if node[0].value.storage == 'register':
+                asm(parser, f'putreg {node[0].value.offset}')
+                return
+        match node[0].typestr[0].type:
+            case 'float':
+                cmd = 'fstore'
+            case 'double':
+                cmd = 'dstore'
+            case 'char':
+                cmd = 'cstore'
+            case _:
+                cmd = 'store'
+        asm(parser, cmd)
+        return
     match node.label:
-        # Special cases
+        case 'postinc' | 'postdec' | 'preinc' | 'predec':
+            label = node.label
+            assert isinstance(node[1], Leaf) and isinstance(node[1].value, int)
+            size = node[1].value
+            if node[0].label == 'name':
+                assert isinstance(node[0], Leaf) and isinstance(node[0].value, Symbol)
+                if node[0].value.storage == 'register':
+                    asm(parser, f'reg{label} {node[0].value.offset}, {size}')
+                    return
+            asmnode(parser, node[0])
+            asm(parser, f'{label} {size}')
+        case 'logand':
+            asmnode(parser, node[0])
+            rval(parser, node[0])
+            falselab = parser.nextstatic()
+            fasm(parser, 'dup', floating([node[0]]))
+            fasm(parser, f'brz {falselab}', floating([node[0]]))
+            fasm(parser, 'drop', floating([node[0]]))
+            asmnode(parser, node[1])
+            rval(parser, node[1])
+            deflab(parser, falselab)
+            asm(parser, 'log')
+            return
         case 'call':
             for arg in node.children[1:]:
                 asmnode(parser, arg)

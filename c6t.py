@@ -16,15 +16,25 @@ def compile_c6t(source: str) -> str:
     return parser.asm
 
 
-if __name__ == "__main__":
-    TESTSRC = """
+def test():
+    TESTSRC = r"""
 
-foobar(foo, bar, puts)
-int (*puts)();
+foobar(foo, bar, func)
+int (*func)();
 int foo[];
 {
-    while (bar--)
-        (*puts)(*foo++);
+    register b, *f, i;
+    
+    if (!func) return;
+
+    if ((b = bar) && (f = foo)) {
+        for (i = 0; i < b; i++)
+            f[i] =+ (*func)(f[i]);
+    }
 }
 """
     print(compile_c6t(TESTSRC))
+
+
+if __name__ == "__main__":
+    test()

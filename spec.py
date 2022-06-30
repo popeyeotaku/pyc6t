@@ -44,7 +44,7 @@ def typeclass(parser: Parser) -> tuple[BaseType | None, StorageClass | None]:
     if base:
         return base, grabclass(parser)
     storage = grabclass(parser)
-    return storage, grabtype(parser)
+    return grabtype(parser), storage
 
 
 def _spec(parser: Parser) -> tuple[str | None, TypeString, list[str]]:
@@ -228,6 +228,7 @@ def funcdef(parser: Parser, name: str, typestr: TypeString,
             parser.error(f'redefined local {name}')
         else:
             parser.symtab[name] = symbol
+        return True
     while specline(parser, True, localcallback):
         pass
 
