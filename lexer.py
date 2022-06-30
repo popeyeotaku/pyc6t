@@ -105,6 +105,43 @@ class Tokenizer(Iterable[Token]):
         """
         return Token(label, self.curline, value)
 
+    def dochar(self) -> bytes:
+        """Return the next input character, with escape support."""
+        if len(self.text) < 1:
+            return ''
+        if self.text[0] == '\\':
+            self._i += 1
+            if len(self.text) < 1:
+                return ''
+            match self.text[0]:
+                case 'b':
+                    self._i += 1
+                    return b'\b'
+                case 'n':
+                    self._i += 1
+                    return b'\n'
+                case 'r':
+                    self._i += 1
+                    return b'\r'
+                case 't':
+                    self._i += 1
+                    return b'\t'
+                case '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7':
+                    match = re.match(r'[0-7][0-7]?[0-7]?', self.text)
+                    if not match:
+                        raise ValueError(
+                            "FATAL UNABLE TO MATCH CHAR CON OCTAL")
+                    self._i += len(match[0])
+                    return bytes([int(match[0], base=8)])
+                case _:
+                    char = self.text[0].encode(encoding='ascii')
+                    self._i += 1
+                    return char
+        else:
+            char = self.text[0].encode(encoding='ascii')
+            self._i += 1
+            return char
+
     def whitespace(self) -> None:
         """Skip leading whitespace."""
         while len(self.text) > 0:
@@ -168,7 +205,25 @@ class Tokenizer(Iterable[Token]):
                 num = util.word(num * base + int(digit))
             return self._token('con', num)
 
-        # TODO: charcon, string
+        if self.text[0] == "'":
+            self._i += 1
+            con = 0
+            while len(self.text) > 0:
+                if self.text[0] == "'":
+                    self._i += 1
+                    break
+                con = (con << 8) | (self.dochar()[0] & 0xFF)
+            return self._token('con', con)
+
+        if self.text[0] == '"':
+            text = bytes()
+            self._i += 1
+            while len(self.text) > 0:
+                if self.text[0] == '"':
+                    self._i += 1
+                    text += bytes([0])
+                    return self._token('string', text)
+                text += self.dochar()
 
         util.error(self, f'bad input character {repr(self.text[0])}')
         self._i += 1

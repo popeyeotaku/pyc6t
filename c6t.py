@@ -1,6 +1,7 @@
 """C6T - C version 6 by Troy - Main Compiler File"""
 
 import pathlib
+from assembly import deflab, goseg, pseudo
 from lexer import Tokenizer
 import preproc
 import spec
@@ -14,6 +15,11 @@ def compile_c6t(source: str) -> str:
 
     while not parser.match('eof'):
         spec.extdef(parser)
+
+    for label, text in parser.strings.items():
+        goseg(parser, 'data')
+        deflab(parser, label)
+        pseudo(parser, f'db {",".join(map(str, text))}')
 
     return parser.asm
 

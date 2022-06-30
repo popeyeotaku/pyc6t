@@ -22,6 +22,7 @@ class Parser:
     casestk: list[dict[int, str]] = field(default_factory=list)
     defaultstk: list[str | None] = field(default_factory=list)
     curseg: str = ''
+    strings: dict[str, bytes] = field(default_factory=dict)
 
     def cleartab(self, table: dict[str, Symbol]) -> None:
         """Clear locals from a given table."""

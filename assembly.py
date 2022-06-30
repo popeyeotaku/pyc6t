@@ -80,7 +80,8 @@ def asmnode(parser: Parser, node: Node) -> None:
         if node.label != 'assign':
             asm(parser, node.label.removeprefix('asn'))
         if node[0].label == 'name':
-            assert isinstance(node[0], Leaf) and isinstance(node[0].value, Symbol)
+            assert isinstance(node[0], Leaf) and isinstance(
+                node[0].value, Symbol)
             if node[0].value.storage == 'register':
                 asm(parser, f'putreg {node[0].value.offset}')
                 return
@@ -101,7 +102,8 @@ def asmnode(parser: Parser, node: Node) -> None:
             assert isinstance(node[1], Leaf) and isinstance(node[1].value, int)
             size = node[1].value
             if node[0].label == 'name':
-                assert isinstance(node[0], Leaf) and isinstance(node[0].value, Symbol)
+                assert isinstance(node[0], Leaf) and isinstance(
+                    node[0].value, Symbol)
                 if node[0].value.storage == 'register':
                     asm(parser, f'reg{label} {node[0].value.offset}, {size}')
                     return
@@ -143,6 +145,13 @@ def asmnode(parser: Parser, node: Node) -> None:
                     return
                 case _:
                     parser.crash('BAD NAME NODE')
+            return
+        case 'string':
+            assert isinstance(node, Leaf) and isinstance(node.value, bytes)
+            label = parser.nextstatic()
+            asm(parser, f'push {label}')
+            assert label not in parser.strings
+            parser.strings[label] = node.value
             return
     if len(node.children) > 0:
         asmnode(parser, node.children[0])
