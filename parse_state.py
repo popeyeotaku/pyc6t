@@ -18,31 +18,31 @@ class Parser:
     localscope: bool = False
     curstatic: int = 0
     brkstk: list[str] = field(default_factory=list)
-    contstk:list[str] = field(default_factory=list)
-    casestk:list[dict[int, str]] = field(default_factory=list)
-    defaultstk:list[str | None] = field(default_factory=list)
-    curseg:str = ''
-    
-    def cleartab(self, table:dict[str, Symbol]) -> None:
+    contstk: list[str] = field(default_factory=list)
+    casestk: list[dict[int, str]] = field(default_factory=list)
+    defaultstk: list[str | None] = field(default_factory=list)
+    curseg: str = ''
+
+    def cleartab(self, table: dict[str, Symbol]) -> None:
         """Clear locals from a given table."""
         for name, symbol in table.copy().items():
             if symbol.local:
                 if symbol.undefined:
                     self.error(f'undefined symbol {name}')
                 del table[name]
-    
+
     def exitlocal(self) -> None:
         """Exit local scope."""
         assert self.localscope
-        
+
         self.brkstk.clear()
         self.contstk.clear()
         self.casestk.clear()
         self.defaultstk.clear()
-        
+
         self.cleartab(self.symtab)
         self.cleartab(self.tagtab)
-        
+
         self.localscope = False
 
     def nextstatic(self) -> str:

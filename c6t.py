@@ -1,4 +1,6 @@
 """C6T - C version 6 by Troy - Main Compiler File"""
+
+import pathlib
 from lexer import Tokenizer
 import preproc
 import spec
@@ -17,23 +19,9 @@ def compile_c6t(source: str) -> str:
 
 
 def test():
-    TESTSRC = r"""
-
-foobar(foo, bar, func)
-int (*func)();
-int foo[];
-{
-    register b, *f, i;
-    
-    if (!func) return;
-
-    if ((b = bar) && (f = foo)) {
-        for (i = 0; i < b; i++)
-            f[i] =+ (*func)(f[i]);
-    }
-}
-"""
-    print(compile_c6t(TESTSRC))
+    """A simple test program.
+    """
+    print(compile_c6t(pathlib.Path('test.c').read_text('utf8')))
 
 
 if __name__ == "__main__":

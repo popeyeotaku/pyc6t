@@ -111,20 +111,19 @@ def asmnode(parser: Parser, node: Node) -> None:
             asmnode(parser, node[0])
             rval(parser, node[0])
             falselab = parser.nextstatic()
-            fasm(parser, 'dup', floating([node[0]]))
-            fasm(parser, f'brz {falselab}', floating([node[0]]))
-            fasm(parser, 'drop', floating([node[0]]))
+            fasm(parser, 'dup', floating(node[0]))
+            fasm(parser, f'brz {falselab}', floating(node[0]))
+            fasm(parser, 'drop', floating(node[0]))
             asmnode(parser, node[1])
             rval(parser, node[1])
             deflab(parser, falselab)
             asm(parser, 'log')
             return
         case 'call':
-            for arg in node.children[1:]:
+            for arg in reversed(node.children[1:]):
                 asmnode(parser, arg)
                 rval(parser, arg)
             asmnode(parser, node.children[0])
-            # rval(parser, node.children[0])
             asm(parser, f'call {len(node.children[1:])}')
             return
         case 'con' | 'fcon':

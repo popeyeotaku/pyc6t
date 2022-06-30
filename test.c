@@ -6,4 +6,14 @@
 
 #include "test.h"
 
-int foobar[] FOOBAR;
+foobar()
+{
+    putoct(FOOBAR, 0);
+}
+
+putoct(o)
+{
+    if (o)
+        putoct((o>>3)&~0160000);
+    putdigit(o&07);
+}

@@ -161,11 +161,11 @@ def build(parser: Parser, linenum: int, label: str | None,
         case 0:
             typestr = [Int6]
         case _:
-            if floating(children):
+            if floating(*children):
                 typestr = [Double6]
-            elif pointer(children):
+            elif pointer(*children):
                 for child in children:
-                    if pointer([child]):
+                    if pointer(child):
                         typestr = child.typestr.copy()
                         break
             else:
@@ -206,7 +206,7 @@ def build(parser: Parser, linenum: int, label: str | None,
             node.typestr.insert(0, Point6)
         case 'postinc' | 'preinc' | 'postdec' | 'preinc':
             del node.children[1:]
-            if pointer(node.children):
+            if pointer(*node.children):
                 size = tysize(node.children[0].typestr)
             else:
                 size = 1
@@ -216,13 +216,13 @@ def build(parser: Parser, linenum: int, label: str | None,
             )
 
     if len(children) == 2 and not opinfo.noconv[node.label]:
-        if floating(node.children):
+        if floating(*node.children):
             for i, child in enumerate(node.children):
                 if not child.typestr[0].floating:
                     node.children[i] = build(
                         parser, linenum, 'toflt', [child]
                     )
-        elif pointer(node.children):
+        elif pointer(*node.children):
             if not opinfo.nopointconv[node.label]:
                 size = 1
                 for child in node.children:
@@ -248,10 +248,10 @@ def build(parser: Parser, linenum: int, label: str | None,
     if opinfo.isint[node.label]:
         node.typestr = [Int6]
 
-    if opinfo.lessgreat[node.label] and pointer(node.children) and node.label[0] != 'u':
+    if opinfo.lessgreat[node.label] and pointer(*node.children) and node.label[0] != 'u':
         node.label = 'u' + node.label
 
-    if floating(node.children + [node]) and not opinfo.yesflt:
+    if floating(*node.children, node) and not opinfo.yesflt:
         parser.error("illegal operation for floating type")
 
     return confold(node)

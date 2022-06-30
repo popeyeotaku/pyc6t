@@ -61,6 +61,7 @@ class Includer(Iterable[str]):
             raise StopIteration from error
         if line == '@':
             self.in_include = not self.in_include
+        return line
 
     def __iter__(self) -> Iterator[str]:
         return self

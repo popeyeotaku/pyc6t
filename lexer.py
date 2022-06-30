@@ -33,7 +33,7 @@ operators = sorted([
     '>>', ' <<',
     '+', '-',
     '*', '/', '%',
-    '!', ' ~', '++', '--',
+    '!', '~', '++', '--',
     '(', ')', '[', ']', '.', '->'
 ], key=len, reverse=True)
 
@@ -47,18 +47,7 @@ class Token:
 
 
 class Tokenizer(Iterable[Token]):
-    """Returns tokens from an input source.
-
-    >>> tokenizer = Tokenizer('int foo 1;')
-    >>> tkns = []
-    >>> while True:
-    ...     t = next(tokenizer)
-    ...     if t.label == 'eof':
-    ...         break
-    ...     tkns.append(t)
-    >>> tkns
-    [Token(label='int', linenum=1, value=None), Token(label='name', linenum=1, value='foo'), Token(label='con', linenum=1, value=1), Token(label=';', linenum=1, value=None)]
-    """
+    """Returns tokens from an input source."""
 
     def __init__(self, source: str, startline: int = 1) -> None:
         self._source = source
@@ -176,7 +165,7 @@ class Tokenizer(Iterable[Token]):
                 base = 10
             num = 0
             for digit in digits:
-                num = num * base + int(digit)
+                num = util.word(num * base + int(digit))
             return self._token('con', num)
 
         # TODO: charcon, string

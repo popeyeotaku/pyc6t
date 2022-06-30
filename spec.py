@@ -10,12 +10,13 @@ from symtab import StorageClass, Symbol
 from type6 import BaseType, Double6, Func6, Int6, Point6, TypeElem, TypeString, tysize
 import util
 
-
+# pylint:disable=unused-argument
 def dostruct(parser: Parser) -> int:
     """Having already read the leading base type 'struct' keyword, parse a
     struct specifier, returning its size in bytes.
     """
     # TODO: do the struct
+    return 0
 
 
 def grabtype(parser: Parser) -> TypeElem | None:
@@ -154,6 +155,7 @@ def funcdef(parser: Parser, name: str, typestr: TypeString,
     for paramname in params:
         paramtypes[paramname] = [Int6].copy()
 
+    # pylint:disable=unused-argument
     def paramcallback(parser: Parser, name: str, storage: StorageClass,
                       typestr: TypeString, params: list[str],
                       count: int) -> bool:
@@ -247,6 +249,7 @@ def funcdef(parser: Parser, name: str, typestr: TypeString,
     parser.exitlocal()
 
 
+# pylint:disable=unused-argument
 def datainit(parser: Parser, name: str, typestr: TypeString) -> TypeString:
     """Handle a data initializer, returning a typestring that may be modified.
     """
@@ -276,7 +279,6 @@ def datadef(parser: Parser, name: str, typestr: TypeString) -> None:
 
 def extdef(parser: Parser) -> bool:
     """Process a line of external definitions."""
-    # TODO: external definition
     def extcallback(parser: Parser, name: str, storage: StorageClass,
                     typestr: TypeString, params: list[str],
                     count: int) -> bool:
