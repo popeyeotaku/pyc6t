@@ -33,9 +33,13 @@ class Includer(Iterable[str]):
         self._lines = deque(source.splitlines(
             keepends=True))  # type:deque[str]
         self.errs = 0
+        self.in_include = False
 
     def include(self, line: int, filename: str) -> None:
         """Try to include the given filename."""
+        if self.in_include:
+            util.error(self, 'includes only support one depth', line)
+            return
         path = Path(PurePosixPath(filename))
         if not path.exists:
             util.error(self,
@@ -52,9 +56,11 @@ class Includer(Iterable[str]):
         """Return the next line from the input.
         """
         try:
-            return self._lines.popleft()
+            line = self._lines.popleft()
         except IndexError as error:
             raise StopIteration from error
+        if line == '@':
+            self.in_include = not self.in_include
 
     def __iter__(self) -> Iterator[str]:
         return self
