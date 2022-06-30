@@ -20,6 +20,7 @@ There are three things in C6T:
 A program is a series of external definition specifiers, which are a specifier followed by an optional initializer expression or list of expressions in braces.
 
 For instance:
+
     int foo[] { 2, 3, 4};
     extern int bar 5, double foobar 6.0;
 
@@ -28,6 +29,7 @@ As a special case, if the first element in list is function type, the rest of th
 A function definition contains a series of specifiers for parameters giving their types, followed by a left brace, followed by specifiers for locals, followed by the statements of the function, and ended in a right brace.
 
 For instance:
+
     main(argc, argv) char **argv;
     {
         static char *string;
