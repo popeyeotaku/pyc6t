@@ -1,2 +1,4 @@
 03 C_Reference_Manual.pdf
 __pycache__/**
+out/**
+.vscode/**
