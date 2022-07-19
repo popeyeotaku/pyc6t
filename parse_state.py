@@ -91,7 +91,7 @@ class Parser:
 
     def crash(self, msg: str, line: int | None = None) -> NoReturn:
         """Print an error message and crash the compiler."""
-        util.error(self, msg, line)
+        self.error(msg, line)
         raise util.CompilerCrash
 
     def need(self, *labels: str, msg: str = 'syntax error') -> None | Token:

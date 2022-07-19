@@ -50,7 +50,7 @@ def statement(parser: Parser, retflt: bool):
             deflab(parser, lab)
             statement(parser, retflt)
             parser.need('while')
-            deflab(parser, parser.constk[-1])
+            deflab(parser, parser.contstk[-1])
             parenexpr(parser, parser.brkstk[-1])
             parser.need(';')
             asm(parser, f'jmp {lab}')

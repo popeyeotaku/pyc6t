@@ -11,12 +11,86 @@ from type6 import BaseType, Double6, Func6, Int6, Point6, TypeElem, TypeString, 
 import util
 
 # pylint:disable=unused-argument
+
+
 def dostruct(parser: Parser) -> int:
     """Having already read the leading base type 'struct' keyword, parse a
     struct specifier, returning its size in bytes.
     """
-    # TODO: do the struct
-    return 0
+    tempname = None
+    if token := parser.match('name'):
+        assert isinstance(token.value, str)
+        name = token.value
+        if name not in parser.tagtab:
+            tempname = name
+            tempsize = 0
+            parser.tagtab[name] = Symbol(
+                name, 'struct', [TypeElem('struct', tempsize)],
+                tempsize, parser.localscope
+            )
+    else:
+        name = None
+
+    offset = 0
+
+    def addmember(parser: Parser, name: str, storage: StorageClass,
+                  typestr: TypeString, args: list[str], count: int) -> bool:
+        """Callback for one member spec."""
+        nonlocal offset
+
+        if name in parser.tagtab:
+            check = parser.tagtab[name]
+            if check.storage == 'member' and check.typestr == typestr and \
+                    check.offset == offset:
+                offset += tysize(typestr)
+                return True
+            parser.error(f'redefined member {name}')
+            return True
+
+        parser.tagtab[name] = Symbol(
+            name, 'member', typestr, offset, parser.localscope
+        )
+        offset += tysize(typestr)
+        return True
+
+    if parser.match('{'):
+        anymembers = True
+        while not parser.match('}'):
+            parser.eoferror()
+            if not specline(parser, True, addmember):
+                parser.termskip()
+                break
+    else:
+        anymembers = False
+
+    if tempname is not None:
+        del parser.tagtab[tempname]
+
+    if name is not None:
+        if name in parser.tagtab:
+            if parser.tagtab[name].storage != 'struct':
+                parser.error(f'non-struct {name}')
+            elif anymembers:
+                parser.error(f'redefined struct {name}')
+            else:
+                offset = parser.tagtab[name].offset
+                assert isinstance(offset, int)
+        else:
+            if not anymembers:
+                parser.error(f'undefined struct {name}')
+            else:
+                parser.tagtab[name] = Symbol(
+                    name,
+                    'struct',
+                    [TypeElem('struct', offset)],
+                    offset,
+                    parser.localscope
+                )
+
+    if name is None and not anymembers:
+        parser.error('missing struct definition')
+
+    return offset
 
 
 def grabtype(parser: Parser) -> TypeElem | None:

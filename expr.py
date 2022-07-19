@@ -410,10 +410,10 @@ def domember(parser: Parser, linenum: int, node: Node, label: str,
         label = 'arrow'
     else:
         label = 'dot'
-    return build(parser, linenum, label, [node, Leaf(
-        'name', linenum, tag.typestr.copy(), [],
-        tag.offset
-    )])
+    node = build(parser, linenum, label,
+                 [node, Leaf('con', linenum, [Int6], [], tag.offset)])
+    node.typestr = tag.typestr.copy()
+    return node
 
 
 def exp1(parser: Parser) -> Node:

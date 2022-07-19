@@ -72,7 +72,6 @@ Func6 = TypeElem('func')
 
 TypeString = list[TypeElem]
 
-
 def tysize(typestr: TypeString) -> int:
     """Returns the size of the type string in bytes."""
     assert len(typestr) > 0
