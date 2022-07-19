@@ -1,7 +1,7 @@
 """C6T - C version 6 by Troy - Assembly Supports"""
 
 from string import whitespace
-from expr import Leaf, Node, floating
+from expr import Leaf, Node
 from parse_state import Parser
 import opinfo
 from symtab import Symbol
@@ -41,7 +41,7 @@ def fasm(parser, line: str, flag: bool) -> None:
 
 def asmexpr(parser: Parser, node: Node) -> None:
     """Assemble an expression tree."""
-    asm(parser, 'clear')
+    goseg(parser, 'text')
     asmnode(parser, node)
     rval(parser, node)
 
@@ -67,104 +67,71 @@ def rval(parser: Parser, node: Node) -> None:
         asm(parser, cmd)
 
 
+def asmval(leaf: Leaf) -> str:
+    """Convert the value of a Leaf node into a string representation for
+    output.
+    """
+    assert isinstance(leaf, Leaf)
+    value = leaf.value
+    match leaf.label:
+        case 'name':
+            assert isinstance(value, Symbol)
+            match value.storage:
+                case 'auto' | 'register':
+                    return f'{value.storage} {value.offset}'
+                case 'extern':
+                    return f'extern {value.name}'
+                case 'static':
+                    return f'extern {value.offset}'
+                case _:
+                    raise ValueError(f'bad storage {value.storage}')
+        case 'con' | 'fcon':
+            return f'{leaf.label} {leaf.value}'
+        case _:
+            raise ValueError(f'bad leaf node {leaf.label}')
+
+
+def asmchildren(parser: Parser, node: Node) -> None:
+    """Run asmnode on all the children of the node in order."""
+    for i, child in enumerate(node.children):
+        asmnode(parser, child)
+        if i == 0 and opinfo.needlval[node.label]:
+            continue
+        rval(parser, child)
+
+
 def asmnode(parser: Parser, node: Node) -> None:
     """Assemble expression nodes recursively."""
-    # Special cases
-    if opinfo.assign[node.label]:
-        asmnode(parser, node.children[0])
-        if node.label != 'assign':
-            asm(parser, 'dup')
-            rval(parser, node.children[0])
-        asmnode(parser, node.children[1])
-        rval(parser, node.children[1])
-        if node.label != 'assign':
-            asm(parser, node.label.removeprefix('asn'))
-        if node[0].label == 'name':
-            assert isinstance(node[0], Leaf) and isinstance(
-                node[0].value, Symbol)
-            if node[0].value.storage == 'register':
-                asm(parser, f'putreg {node[0].value.offset}')
-                return
-        match node[0].typestr[0].type:
-            case 'float':
-                cmd = 'fstore'
-            case 'double':
-                cmd = 'dstore'
-            case 'char':
-                cmd = 'cstore'
-            case _:
-                cmd = 'store'
-        asm(parser, cmd)
-        return
     match node.label:
-        case 'postinc' | 'postdec' | 'preinc' | 'predec':
-            label = node.label
-            assert isinstance(node[1], Leaf) and isinstance(node[1].value, int)
-            size = node[1].value
-            if node[0].label == 'name':
-                assert isinstance(node[0], Leaf) and isinstance(
-                    node[0].value, Symbol)
-                if node[0].value.storage == 'register':
-                    asm(parser, f'reg{label} {node[0].value.offset}, {size}')
-                    return
-            asmnode(parser, node[0])
-            asm(parser, f'{label} {size}')
-        case 'logand':
-            asmnode(parser, node[0])
-            rval(parser, node[0])
-            falselab = parser.nextstatic()
-            fasm(parser, 'dup', floating(node[0]))
-            fasm(parser, f'brz {falselab}', floating(node[0]))
-            fasm(parser, 'drop', floating(node[0]))
-            asmnode(parser, node[1])
-            rval(parser, node[1])
-            deflab(parser, falselab)
-            asm(parser, 'log')
-            return
-        case 'call':
-            for arg in reversed(node.children[1:]):
-                asmnode(parser, arg)
-                rval(parser, arg)
+        case 'dot' | 'arrow':
+            assert len(node.children) == 2
             asmnode(parser, node.children[0])
-            asm(parser, f'call {len(node.children[1:])}')
-            return
-        case 'con' | 'fcon':
-            assert isinstance(node, Leaf)
-            fasm(parser, f'push {node.value}', node.label == 'fcon')
-            return
-        case 'name':
-            assert isinstance(node, Leaf) and isinstance(node.value, Symbol)
-            match node.value.storage:
-                case 'auto':
-                    asm(parser, f'auto {node.value.offset}')
-                case 'static':
-                    asm(parser, f'push {node.value.offset}')
-                case 'extern':
-                    asm(parser, f'push {node.value.name}')
-                case 'register':
-                    return
-                case _:
-                    parser.crash('BAD NAME NODE')
-            return
-        case 'string':
-            assert isinstance(node, Leaf) and isinstance(node.value, bytes)
-            label = parser.nextstatic()
-            asm(parser, f'push {label}')
-            assert label not in parser.strings
-            parser.strings[label] = node.value
-            return
-    if len(node.children) > 0:
-        asmnode(parser, node.children[0])
-        if not opinfo.needlval[node.label]:
-            rval(parser, node.children[0])
-        for child in node.children[1:]:
-            asmnode(parser, child)
-            rval(parser, child)
-    match node.label:
-        case 'deref' | 'addr':
-            pass
+            if node.label == 'arrow':
+                rval(parser, node.children[0])
+            assert isinstance(node.children[1], Leaf) and \
+                node.children[1].label == 'con' and \
+                isinstance(node.children[1].value, int)
+            offset = node.children[1].value
+            if offset:
+                asm(parser, f'con {offset}')
+                asm(parser, 'add')
+        case 'addr' | 'deref':
+            # do nothing
+            asmchildren(parser, node)
+        case 'call':
+            assert len(node.children) >= 1
+            for child in reversed(node.children[1:]):
+                asmnode(parser, child)
+                rval(parser, child)
+                asm(parser, 'push')
+            asmnode(parser, node.children[0])
+            asm(parser, 'call')
         case _:
-            asm(parser, node.label)
+            asmchildren(parser, node)
+            if isinstance(node, Leaf):
+                asm(parser, asmval(node))
+            else:
+                asm(parser, node.label)
 
 
 def goseg(parser: Parser, segment: str) -> str:

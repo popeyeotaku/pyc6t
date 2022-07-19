@@ -20,6 +20,13 @@ class Node(collections.abc.MutableSequence):
     typestr: TypeString
     children: list[Node]
 
+    def __post_init__(self):
+        assert isinstance(self.label, str)
+        assert isinstance(self.linenum, int)
+        assert isinstance(self.typestr, list)
+        assert isinstance(self.children, list)
+        assert all((isinstance(i, Node) for i in self.children))
+
     def insert(self, index: int, value: Node) -> None:
         self.children.insert(index, value)
 
@@ -118,7 +125,7 @@ def doarray(node: Node) -> Node:
     if node.label != 'addr' and node.typestr[0].type == 'array':
         node = Node('addr', node.linenum,
                     [Point6] + node.typestr[1:],
-                    node)
+                    [node])
     return node
 
 

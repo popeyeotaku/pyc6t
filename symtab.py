@@ -15,6 +15,6 @@ class Symbol:
     name: str
     storage: StorageClass
     typestr: TypeString
-    offset: int | None = None
+    offset: int | str | None = None
     local: bool = False
     undefined: bool = False

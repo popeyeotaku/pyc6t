@@ -308,6 +308,8 @@ def funcdef(parser: Parser, name: str, typestr: TypeString,
     while specline(parser, True, localcallback):
         pass
 
+    goseg(parser, 'text')
+
     if auto_offset != 0:
         asm(parser, f'dropstk {util.word(-auto_offset)}')
 
@@ -317,8 +319,7 @@ def funcdef(parser: Parser, name: str, typestr: TypeString,
         parser.eoferror()
         statement(parser, functype[1].floating)
 
-    asm(parser, 'push 0')
-    fasm(parser, 'ret', functype[1].floating)
+    fasm(parser, 'retnull', functype[1].floating)
 
     parser.exitlocal()
 

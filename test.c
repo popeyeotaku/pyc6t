@@ -3,7 +3,7 @@
 #define FOOBAR 150
 
 struct foobar {
-    int foo, bar;
+    char foo, bar;
     struct foobar *list[FOOBAR];
 };
 

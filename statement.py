@@ -1,7 +1,7 @@
 """C6T - C version 6 by Troy - Statement Handling"""
 
 from assembly import asm, asmexpr, deflab, fasm, goseg, pseudo
-from expr import Leaf, Node, conexpr, expression
+from expr import Node, conexpr, expression
 from parse_state import Parser
 from symtab import Symbol
 from type6 import Int6, TypeElem
@@ -141,18 +141,18 @@ def statement(parser: Parser, retflt: bool):
             deflab(parser, lab)
         case 'return':
             if parser.match(';'):
-                node = Leaf('con', token.linenum, [Int6], [], 0)
+                asm(parser, 'retnull')
             else:
                 parser.need('(')
                 node = expression(parser)
                 parser.need(')')
                 parser.need(';')
-            asmexpr(parser, node)
-            if retflt and not node.typestr[0].floating:
-                asm(parser, 'toflt')
-            if (not retflt) and node.typestr[0].floating:
-                asm(parser, 'toint')
-            fasm(parser, 'ret', retflt)
+                asmexpr(parser, node)
+                if retflt and not node.typestr[0].floating:
+                    asm(parser, 'toflt')
+                if (not retflt) and node.typestr[0].floating:
+                    asm(parser, 'toint')
+                fasm(parser, 'ret', retflt)
         case 'goto':
             asmexpr(parser, expression(parser))
             parser.need(';')
@@ -220,12 +220,12 @@ def doswitch(parser: Parser, node: Node, cases: dict[int, str],
     goseg(parser, 'code')
     asmexpr(parser, node)
     if default:
-        asm(parser, f'push {default}')
+        asm(parser, f'extern {default}')
     else:
         try:
             asm(parser, parser.brkstk[-1])
         except IndexError:
             parser.error('missing break for switch')
-    asm(parser, f'push {len(cases)}')
-    asm(parser, f'push {tablab}')
+    asm(parser, f'con {len(cases)}')
+    asm(parser, f'extern {tablab}')
     asm(parser, 'jmp cswitch')

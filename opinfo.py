@@ -3,7 +3,8 @@
 from defaulter import Flags
 
 noconv = Flags(
-    'comma', 'logor', 'logand', 'postinc', 'preinc', 'postdec', 'predec'
+    'comma', 'logor', 'logand', 'postinc', 'preinc', 'postdec', 'predec',
+    'dot', 'arrow'
 )
 
 assign = Flags(
