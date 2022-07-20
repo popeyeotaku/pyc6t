@@ -8,8 +8,8 @@ import util
 keywords = [
     'int', 'char', 'float', 'double', 'struct', 'auto', 'register', 'static',
     'goto', 'return', 'sizeof', 'break', 'continue', 'if', 'else', 'for',
-    'do', 'while', 'switch', 'case', 'default', 'entry', 'extern'
-]
+    'do', 'while', 'switch', 'case', 'default', 'extern'
+] # The spec also keys 'entry', which is unimplemented
 
 re_name = re.compile(r'[a-zA-Z_]+[a-zA-Z_0-9]*')
 re_fcon = re.compile(

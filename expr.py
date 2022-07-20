@@ -253,8 +253,8 @@ def build(parser: Parser, linenum: int, label: str | None,
             else:
                 node.typestr = node.typestr[1:]
         case 'addr':
-            if children[0].label == 'deref':
-                node = node.children[0]
+            if node[0].label == 'deref':
+                node = node[0][0]
                 node.typestr = node.typestr[1:]
             node.typestr.insert(0, Point6)
         case 'postinc' | 'preinc' | 'postdec' | 'preinc':

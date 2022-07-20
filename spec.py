@@ -2,8 +2,8 @@
 
 from math import ceil
 from typing import Callable
-from assembly import asm, asmexpr, deflab, fasm, goseg, pseudo
-from expr import Leaf, conexpr, expression
+from assembly import asm, deflab, fasm, goseg, pseudo
+from expr import Leaf, Node, conexpr, expression
 from lexer import Token
 from parse_state import Parser
 from statement import statement
@@ -346,7 +346,84 @@ def targtype(typestr: TypeString) -> tuple[str, int]:
             return targtype(typestr[1:])
     raise ValueError
 
-# pylint:disable=unused-argument
+
+def initconv(node: Node) -> tuple[Node, int]:
+    """Convert the expression node into the proper setup for initexpr's
+    return. Seperate because it's recursive.
+    """
+    match node.label:
+        case 'fcon' | 'con':
+            return node, 0
+        case 'addr':
+            child = node[0]
+            if child.label in ('string', 'name'):
+                return child, 0
+        case 'add' | 'sub':
+            if node[0].label == 'con':
+                assert isinstance(node[0], Leaf)
+                curoffset = node[0].value
+                check = node[1]
+            elif node[1].label == 'con':
+                assert isinstance(node[1], Leaf)
+                curoffset = node[1].value
+                check = node[0]
+            else:
+                raise ValueError
+            if node.label == 'sub':
+                curoffset = -curoffset
+            # pylint:disable=unpacking-non-sequence
+            node, offset = initconv(check)
+            if node.label not in ('name', 'string'):
+                raise ValueError
+            return node, offset + curoffset
+    raise ValueError
+
+
+def initexpr(parser: Parser) -> tuple[Node, int]:
+    """Handle an initializer expression returning its value, and an optional
+    integer offset.
+    """
+    node = expression(parser, seecommas=False)
+    try:
+        # pylint:disable=unpacking-non-sequence
+        node, offset = initconv(node)
+    except ValueError:
+        parser.error('bad initializer')
+        return Leaf('con', parser.curline, [Int6], [], 1), 0
+    return node, offset
+
+
+def outinit(parser: Parser, cmd: str, node: Node, offset: int,
+            asmstring: bool = True) -> None:
+    """Output an initializer expression."""
+    match node.label:
+        case 'con' | 'fcon':
+            assert isinstance(node, Leaf)
+            goseg(parser, 'data')
+            pseudo(parser, f'{cmd} {node.value}')
+        case 'name' | 'string':
+            assert isinstance(node, Leaf)
+            if offset:
+                offstr = f"{'-' if offset < 0 else '+'}{abs(offset)}"
+            else:
+                offstr = ''
+            if node.label == 'string':
+                strbytes = ','.join((str(b) for b in node.value))
+                if asmstring:
+                    goseg(parser, 'string')
+                    label = parser.nextstatic()
+                    deflab(parser, label)
+                    val = label
+                    pseudo(parser, f'dc {strbytes}')
+                else:
+                    val = strbytes
+            else:
+                assert isinstance(node.value, Symbol)
+                assert node.value.storage == 'extern'
+                val = node.value.name
+            pseudo(parser, f'{cmd} {val}{offstr}')
+        case _:
+            raise ValueError
 
 
 def datainit(parser: Parser, name: str, typestr: TypeString) -> TypeString:
@@ -361,33 +438,30 @@ def datainit(parser: Parser, name: str, typestr: TypeString) -> TypeString:
 
     # Two cases: list of initializers in braces, or a single one.
     totalsize = tysize(typestr)
-    numelems = 0
+    elembytes = 0
 
     if parser.match('{'):
         def parselist(parser: Parser, token: Token) -> bool:
-            nonlocal numelems
+            nonlocal elembytes
 
             parser.unsee(token)
-            node = expression(parser, seecommas=False)
-            asmexpr(parser, node)
-            asm(parser, cmd)
-            numelems += 1
+            node, offset = initexpr(parser)
+            outinit(parser, cmd, node, offset)
+            elembytes += tysize(node.typestr)
             return True
         parser.list('}', parselist)
     else:
-        node = expression(parser, seecommas=False)
-        if node.label == 'addr' and node[0].label == 'string' and \
-                typestr[0].type == 'array' and typestr[1].type == 'char':
-            assert isinstance(node[0], Leaf)
-            assert isinstance(node[0].value, bytes)
-            asm(parser, f".dc {','.join((str(v) for v in node[0].value))}")
-            numelems = len(node[0].value)
-            elemsize = 1
+        node, offset = initexpr(parser)
+        if node.label == 'string' and typestr[0].type == 'array' and \
+                typestr[1].type == 'char':
+            asmstr = False
+            assert isinstance(node, Leaf)
         else:
-            asmexpr(parser, node)
-            asm(parser, cmd)
-            numelems = 1
+            asmstr = True
+        outinit(parser, cmd, node, offset, asmstr)
+        elembytes += tysize(node.typestr)
 
+    numelems = ceil(elembytes / storesize)
     elemsize = storesize * numelems
     if elemsize > totalsize:
         typestr = typestr.copy()

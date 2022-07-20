@@ -29,8 +29,10 @@ class TypeElem:
         array.
         """
         match self.type:
-            case 'int' | 'point' | 'func':
+            case 'int' | 'point':
                 return 2
+            case 'func':
+                return 0
             case 'char':
                 return 1
             case 'float':

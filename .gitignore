@@ -4,3 +4,4 @@ out/**
 .vscode/**
 ed.c
 ed.ir
+*.ir

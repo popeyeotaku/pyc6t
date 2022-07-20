@@ -1,5 +1,6 @@
 """C6T - C version 6 by Troy - Main Compiler File"""
 
+from os import PathLike
 import pathlib
 from assembly import deflab, goseg, pseudo
 from lexer import Tokenizer
@@ -24,13 +25,16 @@ def compile_c6t(source: str) -> str:
     return parser.asm
 
 
-def test():
+def test(name:PathLike):
     """A simple test program.
     """
-    path = pathlib.Path('ed.ir')
-    asm = compile_c6t(pathlib.Path('ed.c').read_text('utf8'))
-    path.write_text(asm, encoding='utf8')
+    name = pathlib.Path(name)
+    asm = compile_c6t(name.read_text('utf8'))
+    out = name.with_suffix('.ir')
+    out.write_text(asm, encoding='utf8')
 
 
 if __name__ == "__main__":
-    test()
+    test('test.c')
+    test('glob.c')
+    test('ed.c')
