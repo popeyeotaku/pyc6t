@@ -62,7 +62,7 @@ def rval(parser: Parser, node: Node) -> None:
         asm(parser, cmd)
 
 
-def asmval(leaf: Leaf) -> str:
+def asmval(parser: Parser, leaf: Leaf) -> str:
     """Convert the value of a Leaf node into a string representation for
     output.
     """
@@ -82,6 +82,13 @@ def asmval(leaf: Leaf) -> str:
                     raise ValueError(f'bad storage {value.storage}')
         case 'con' | 'fcon':
             return f'{leaf.label} {leaf.value}'
+        case 'string':
+            oldseg = goseg(parser, 'string')
+            lab = parser.nextstatic()
+            deflab(parser, lab)
+            asm(parser, f".dc {','.join((str(b) for b in value))}")
+            goseg(parser, oldseg)
+            return f'extern {lab}'
         case _:
             raise ValueError(f'bad leaf node {leaf.label}')
 
@@ -137,7 +144,7 @@ def asmnode(parser: Parser, node: Node) -> None:
         case _:
             asmchildren(parser, node)
             if isinstance(node, Leaf):
-                asm(parser, asmval(node))
+                asm(parser, asmval(parser, node))
             else:
                 asm(parser, node.label)
 

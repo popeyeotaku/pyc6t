@@ -217,7 +217,7 @@ def doswitch(parser: Parser, node: Node, cases: dict[int, str],
     deflab(parser, tablab)
     for con, label in cases.items():
         pseudo(parser, f'dw {con}, {label}')
-    goseg(parser, 'code')
+    goseg(parser, 'text')
     asmexpr(parser, node)
     if default:
         asm(parser, f'extern {default}')

@@ -8,7 +8,7 @@ import util
 keywords = [
     'int', 'char', 'float', 'double', 'struct', 'auto', 'register', 'static',
     'goto', 'return', 'sizeof', 'break', 'continue', 'if', 'else', 'for',
-    'do', 'while', 'switch', 'case', 'default', 'entry'
+    'do', 'while', 'switch', 'case', 'default', 'entry', 'extern'
 ]
 
 re_name = re.compile(r'[a-zA-Z_]+[a-zA-Z_0-9]*')
@@ -30,7 +30,7 @@ operators = sorted([
     '&',
     '==', '!=',
     '<', '>', '<=', '>=',
-    '>>', ' <<',
+    '>>', '<<',
     '+', '-',
     '*', '/', '%',
     '!', '~', '++', '--',

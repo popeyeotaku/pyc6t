@@ -41,7 +41,7 @@ class Node(collections.abc.MutableSequence):
 
     def __delitem__(self, key: int) -> None:
         del self.children[key]
-    
+
     def floating(self) -> bool:
         """Return a flag for if this node is floating type or not."""
         if self.typestr and self.typestr[0].floating:
@@ -125,13 +125,12 @@ def pointer(*nodes: Node) -> bool:
     return any(map(lambda n: n.typestr[0].pointer, nodes))
 
 
-def doarray(node: Node) -> Node:
+def doarray(parser: Parser, node: Node) -> Node:
     """Convert an array type node to &->node of type pointer.
     """
     if node.label != 'addr' and node.typestr[0].type == 'array':
-        node = Node('addr', node.linenum,
-                    [Point6] + node.typestr[1:],
-                    [node])
+        node.typestr = node.typestr[1:]
+        node = build(parser, node.linenum, 'addr', [node])
     return node
 
 
@@ -143,31 +142,13 @@ def dofunc(node: Node) -> Node:
             'addr',
             node.linenum,
             [Point6] + node.typestr,
-            node)
+            [node])
     return node
 
 
-def build(parser: Parser, linenum: int, label: str | None,
-          children: list[Node]) -> Node:
-    """Construct a new non-leaf node."""
-    if label == 'sizeof':
-        return Leaf('con', children[0].linenum,
-                    [Int6], [], tysize(children[0].typestr))
-
-    if label is None:
-        return dofunc(doarray(children[0]))
-
-    if label == 'call':
-        if not children[0].typestr[0].type == 'func':
-            parser.error('call of non-function')
-        node = Node(
-            'call',
-            linenum,
-            children[0].typestr[1:],
-            children
-        )
-        return node
-
+def stdconv(children: list[Node]) -> TypeString:
+    """Perform standard type conversions on the node.
+    """
     match len(children):
         case 1:
             typestr = children[0].typestr.copy()
@@ -183,15 +164,72 @@ def build(parser: Parser, linenum: int, label: str | None,
                         break
             else:
                 typestr = [Int6]
+    return typestr
+
+
+def build(parser: Parser, linenum: int, label: str | None,
+          children: list[Node]) -> Node:
+    """Construct a new non-leaf node."""
+    if label == 'sizeof':
+        return Leaf('con', children[0].linenum,
+                    [Int6], [], tysize(children[0].typestr))
+
+    if label is None:
+        return dofunc(doarray(parser, children[0]))
+
+    if label == 'call':
+        if not children[0].typestr[0].type == 'func':
+            parser.error('call of non-function')
+        node = Node(
+            'call',
+            linenum,
+            children[0].typestr[1:],
+            children
+        )
+        return node
+
+    for i, child in enumerate(children[1:]):
+        children[i+1] = dofunc(doarray(parser, child))
+
+    if label not in ('addr', 'assign'):
+        children[0] = doarray(parser, children[0])
+        if label != 'call':
+            children[0] = dofunc(children[0])
+
+    if len(children) == 2 and not opinfo.noconv[label]:
+        if floating(*children):
+            for i, child in enumerate(children):
+                if not child.typestr[0].floating:
+                    children[i] = build(
+                        parser, linenum, 'toflt', [child]
+                    )
+        elif pointer(*children):
+            if not opinfo.nopointconv[label]:
+                size = 1
+                for child in children:
+                    if child.typestr[0].pointer:
+                        size = tysize(child.typestr[1:])
+                        break
+                for i, child in enumerate(children):
+                    if not child.typestr[0].pointer:
+                        children[i] = build(
+                            parser,
+                            linenum,
+                            'mult',
+                            [child,
+                             Leaf(
+                                 'con',
+                                 linenum,
+                                 [Int6],
+                                 [],
+                                 size
+                             )]
+                        )
+
+    typestr = stdconv(children)
     node = Node(label, linenum, typestr, children)
 
-    for i, child in enumerate(node.children[1:]):
-        node.children[i+1] = dofunc(doarray(child))
-
-    if label != 'addr':
-        node.children[0] = doarray(node.children[0])
-        if label != 'call':
-            node.children[0] = dofunc(node.children[0])
+    children = node.children
 
     if opinfo.needlval[label] and not opinfo.islval[children[0].label]:
         parser.error('missing required lval')
@@ -209,7 +247,7 @@ def build(parser: Parser, linenum: int, label: str | None,
             if left.typestr == right.typestr:
                 node.typestr = left.typestr.copy()
             else:
-                node.typestr = [Int6] # ? also need floats
+                node.typestr = [Int6]  # ? also need floats
             return node
         case 'deref':
             if children[0].label == 'addr':
@@ -221,6 +259,7 @@ def build(parser: Parser, linenum: int, label: str | None,
         case 'addr':
             if children[0].label == 'deref':
                 node = node.children[0]
+                node.typestr = node.typestr[1:]
             node.typestr.insert(0, Point6)
         case 'postinc' | 'preinc' | 'postdec' | 'preinc':
             del node.children[1:]
@@ -232,36 +271,6 @@ def build(parser: Parser, linenum: int, label: str | None,
                 'con', linenum, [Int6], [],
                 size)
             )
-
-    if len(children) == 2 and not opinfo.noconv[node.label]:
-        if floating(*node.children):
-            for i, child in enumerate(node.children):
-                if not child.typestr[0].floating:
-                    node.children[i] = build(
-                        parser, linenum, 'toflt', [child]
-                    )
-        elif pointer(*node.children):
-            if not opinfo.nopointconv[node.label]:
-                size = 1
-                for child in node.children:
-                    if child.typestr[0].pointer:
-                        size = tysize(child.typestr[1:])
-                        break
-                for i, child in enumerate(node.children):
-                    if not child.typestr[0].pointer:
-                        node.children[i] = build(
-                            parser,
-                            linenum,
-                            'mult',
-                            [child,
-                             Leaf(
-                                 'con',
-                                 linenum,
-                                 [Int6],
-                                 [],
-                                 size
-                             )]
-                        )
 
     if opinfo.isint[node.label]:
         node.typestr = [Int6]
@@ -401,7 +410,10 @@ def exp2(parser: Parser) -> Node:
     }
     token = parser.match(*labels.keys())
     if token:
-        return build(parser, token.linenum, labels[token.label], [exp2(parser)])
+        node = exp2(parser)
+        if token.label == '&' and not opinfo.islval[node.label]:
+            parser.error('missing required lval')
+        return build(parser, token.linenum, labels[token.label], [node])
     node = exp1(parser)
     while True:
         token = parser.match('++', '--')

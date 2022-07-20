@@ -34,11 +34,11 @@ yesflt = Flags(
 )
 
 needlval = Flags(
-    *assign.keys(), 'preinc', 'postinc', 'predec', 'postdec', 'dot', 'addr'
+    *assign.keys(), 'preinc', 'postinc', 'predec', 'postdec', 'dot'
 )
 
 islval = Flags(
-    'dot', 'arrow', 'deref', 'name'
+    'dot', 'arrow', 'deref', 'name', 'string'
 )
 
 nopointconv = Flags(

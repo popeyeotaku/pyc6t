@@ -3,7 +3,7 @@
 from math import ceil
 from typing import Callable
 from assembly import asm, asmexpr, deflab, fasm, goseg, pseudo
-from expr import conexpr, expression
+from expr import Leaf, conexpr, expression
 from lexer import Token
 from parse_state import Parser
 from statement import statement
@@ -51,7 +51,7 @@ def dostruct(parser: Parser) -> int:
         parser.tagtab[name] = Symbol(
             name, 'member', typestr, offset, parser.localscope
         )
-        offset += tysize(typestr)
+        offset = util.word(tysize(typestr) + offset)
         return True
 
     if parser.match('{'):
@@ -354,7 +354,9 @@ def datainit(parser: Parser, name: str, typestr: TypeString) -> TypeString:
     """
     # At this point, the next input token will be the first one of the initializer.
 
-    cmd, storesize = targtype(typestr) # pylint: disable=unpacking-non-sequence
+    # pylint: disable=unpacking-non-sequence
+    cmd, storesize = targtype(
+        typestr)
     cmd = f'd{cmd}'
 
     # Two cases: list of initializers in braces, or a single one.
@@ -374,9 +376,17 @@ def datainit(parser: Parser, name: str, typestr: TypeString) -> TypeString:
         parser.list('}', parselist)
     else:
         node = expression(parser, seecommas=False)
-        asmexpr(parser, node)
-        asm(parser, cmd)
-        numelems = 1
+        if node.label == 'string' and typestr[0].type == 'array' and \
+                typestr[1].type == 'char':
+            assert isinstance(node, Leaf)
+            assert isinstance(node.value, bytes)
+            asm(parser, f".dc {','.join((str(v) for v in node.value))}")
+            numelems = len(node.value)
+            elemsize = 1
+        else:
+            asmexpr(parser, node)
+            asm(parser, cmd)
+            numelems = 1
 
     elemsize = storesize * numelems
     if elemsize > totalsize:
@@ -421,12 +431,15 @@ def extdef(parser: Parser) -> bool:
                     count: int) -> bool:
         """Constructs an external definition having seen its specifier."""
         if typestr[0] == Func6:
-            if count > 1:
-                parser.errskip('function definition not first element in '
-                               'specifier list')
+            if parser.peek().label in (',', ';'):
+                pass  # uninitialized function
             else:
-                funcdef(parser, name, typestr, params)
-            return False
+                if count > 1:
+                    parser.errskip('function definition not first element in '
+                                   'specifier list')
+                else:
+                    funcdef(parser, name, typestr, params)
+                return False
         datadef(parser, name, typestr)
         return True
 
