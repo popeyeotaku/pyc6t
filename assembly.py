@@ -107,6 +107,7 @@ def asmnode(parser: Parser, node: Node) -> None:
     """Assemble expression nodes recursively."""
     match node.label:
         case 'assign':
+            # TODO: assign ops (=+, etc)
             assert len(node.children) == 2
             match node.children[0].typestr[0].type:
                 case 'float':

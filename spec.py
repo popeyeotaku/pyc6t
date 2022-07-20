@@ -279,6 +279,8 @@ def funcdef(parser: Parser, name: str, typestr: TypeString,
         nonlocal auto_offset, regs
         if storage == 'register' and regs >= util.MAXREGS:
             storage = 'auto'
+        if typestr[0].type == 'func':
+            storage = 'extern'
         match storage:
             case 'auto':
                 auto_offset = util.word(auto_offset - tysize(typestr))
@@ -311,7 +313,7 @@ def funcdef(parser: Parser, name: str, typestr: TypeString,
     goseg(parser, 'text')
 
     if auto_offset != 0:
-        asm(parser, f'dropstk {util.word(-auto_offset)}')
+        asm(parser, f'lenautos {util.word(-auto_offset)}')
 
     asm(parser, f'useregs {regs}')
 

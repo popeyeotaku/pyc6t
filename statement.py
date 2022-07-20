@@ -91,10 +91,17 @@ def statement(parser: Parser, retflt: bool):
             parser.casestk.append({})
             parser.defaultstk.append(None)
 
+            swdest = parser.nextstatic()
+
             parser.need('(')
             node = expression(parser)
             parser.need(')')
+
+            asm(parser, f'jmp {swdest}')
+
             statement(parser, retflt)
+
+            deflab(parser, swdest)
             doswitch(parser, node, parser.casestk.pop(),
                      parser.defaultstk.pop())
 
@@ -130,7 +137,7 @@ def statement(parser: Parser, retflt: bool):
             except IndexError:
                 parser.error('nothing to break to')
                 return
-            deflab(parser, lab)
+            asm(parser, f'jmp {lab}')
         case 'continue':
             parser.need(';')
             try:
@@ -138,7 +145,7 @@ def statement(parser: Parser, retflt: bool):
             except IndexError:
                 parser.error("nothing to continue to")
                 return
-            deflab(parser, lab)
+            asm(parser, f'jmp {lab}')
         case 'return':
             if parser.match(';'):
                 asm(parser, 'retnull')
@@ -212,8 +219,6 @@ def addgoto(parser: Parser, name: str):
 def doswitch(parser: Parser, node: Node, cases: dict[int, str],
              default: None | str):
     """Output assembly for a switch statement.
-    
-    TODO: rewrite for new node output
     """
     goseg(parser, 'data')
     tablab = parser.nextstatic()
@@ -226,9 +231,9 @@ def doswitch(parser: Parser, node: Node, cases: dict[int, str],
         asm(parser, f'extern {default}')
     else:
         try:
-            asm(parser, parser.brkstk[-1])
+            asm(parser, f'extern {parser.brkstk[-1]}')
         except IndexError:
             parser.error('missing break for switch')
     asm(parser, f'con {len(cases)}')
     asm(parser, f'extern {tablab}')
-    asm(parser, 'jmp cswitch')
+    asm(parser, 'doswitch')

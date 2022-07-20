@@ -39,6 +39,7 @@ def test():
     """
     main('test.c')
     main('cat.c')
+    main('wrap.c')
     main('glob.c')
     main('ed.c')
 
