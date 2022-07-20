@@ -163,6 +163,19 @@ def stdconv(children: list[Node]) -> TypeString:
     return typestr
 
 
+def regchk(parser: Parser, node: Node) -> None:
+    """Check if illegal register usage and error if so."""
+    if node.label not in ('dot,' 'addr'):
+        return
+    child = node[0]
+    if child.label == 'name':
+        assert isinstance(child, Leaf)
+        sym = child.value
+        assert isinstance(sym, Symbol)
+        if sym.storage == 'register':
+            parser.error('illegal use of register')
+
+
 def build(parser: Parser, linenum: int, label: str | None,
           children: list[Node]) -> Node:
     """Construct a new non-leaf node."""
@@ -257,7 +270,8 @@ def build(parser: Parser, linenum: int, label: str | None,
                 node = node[0][0]
                 node.typestr = node.typestr[1:]
             node.typestr.insert(0, Point6)
-        case 'postinc' | 'preinc' | 'postdec' | 'preinc':
+            regchk(parser, node)
+        case 'postinc' | 'preinc' | 'postdec' | 'predec':
             del node.children[1:]
             if pointer(*node.children):
                 size = tysize(node.children[0].typestr)
@@ -267,6 +281,8 @@ def build(parser: Parser, linenum: int, label: str | None,
                 'con', linenum, [Int6], [],
                 size)
             )
+        case 'dot':
+            regchk(parser, node)
 
     if opinfo.isint[node.label]:
         node.typestr = [Int6]
@@ -497,7 +513,9 @@ def exp1(parser: Parser) -> Node:
                 def callback(parser: Parser, token: Token) -> bool:
                     """Add an argument to the arg list."""
                     parser.unsee(token)
-                    args.append(exp14(parser))
+                    arg = exp14(parser)
+                    arg = build(parser, arg.linenum, None, [arg])
+                    args.append(arg)
                     return True
                 parser.list(')', callback)
                 node = build(parser, token.linenum, 'call', [node] + args)

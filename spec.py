@@ -11,9 +11,8 @@ from symtab import StorageClass, Symbol
 from type6 import BaseType, Double6, Func6, Int6, Point6, TypeElem, TypeString, tysize
 import util
 
+
 # pylint:disable=unused-argument
-
-
 def dostruct(parser: Parser) -> int:
     """Having already read the leading base type 'struct' keyword, parse a
     struct specifier, returning its size in bytes.
@@ -421,6 +420,7 @@ def outinit(parser: Parser, cmd: str, node: Node, offset: int,
                 assert isinstance(node.value, Symbol)
                 assert node.value.storage == 'extern'
                 val = node.value.name
+            goseg(parser, 'data')
             pseudo(parser, f'{cmd} {val}{offstr}')
         case _:
             raise ValueError

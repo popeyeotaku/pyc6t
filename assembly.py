@@ -142,9 +142,9 @@ def asmnode(parser: Parser, node: Node) -> None:
             for child in reversed(node.children[1:]):
                 asmnode(parser, child)
                 rval(parser, child)
-                asm(parser, 'push')
+                asm(parser, 'arg')
             asmnode(parser, node.children[0])
-            asm(parser, 'call')
+            asm(parser, f'call {len(node.children[1:])}')
         case _:
             asmchildren(parser, node)
             if isinstance(node, Leaf):

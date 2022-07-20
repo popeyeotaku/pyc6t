@@ -25,8 +25,8 @@ def compile_c6t(source: str) -> str:
     return parser.asm
 
 
-def test(name:PathLike):
-    """A simple test program.
+def main(name:PathLike):
+    """Compile the given file.
     """
     name = pathlib.Path(name)
     asm = compile_c6t(name.read_text('utf8'))
@@ -34,7 +34,13 @@ def test(name:PathLike):
     out.write_text(asm, encoding='utf8')
 
 
+def test():
+    """Compile some test programs.
+    """
+    main('test.c')
+    main('cat.c')
+    main('glob.c')
+    main('ed.c')
+
 if __name__ == "__main__":
-    test('test.c')
-    test('glob.c')
-    test('ed.c')
+    test()
