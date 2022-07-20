@@ -134,15 +134,11 @@ def doarray(parser: Parser, node: Node) -> Node:
     return node
 
 
-def dofunc(node: Node) -> Node:
+def dofunc(parser: Parser, node: Node) -> Node:
     """Convert a function type node to addr to pointer to function.
     """
     if node.typestr[0].type == 'func':
-        node = Node(
-            'addr',
-            node.linenum,
-            [Point6] + node.typestr,
-            [node])
+        node = build(parser, node.linenum, 'addr', [node])
     return node
 
 
@@ -175,7 +171,7 @@ def build(parser: Parser, linenum: int, label: str | None,
                     [Int6], [], tysize(children[0].typestr))
 
     if label is None:
-        return dofunc(doarray(parser, children[0]))
+        return dofunc(parser, doarray(parser, children[0]))
 
     if label == 'call':
         if not children[0].typestr[0].type == 'func':
@@ -189,12 +185,12 @@ def build(parser: Parser, linenum: int, label: str | None,
         return node
 
     for i, child in enumerate(children[1:]):
-        children[i+1] = dofunc(doarray(parser, child))
+        children[i+1] = dofunc(parser, doarray(parser, child))
 
     if label not in ('addr', 'assign'):
         children[0] = doarray(parser, children[0])
         if label != 'call':
-            children[0] = dofunc(children[0])
+            children[0] = dofunc(parser, children[0])
 
     if len(children) == 2 and not opinfo.noconv[label]:
         if floating(*children):

@@ -376,12 +376,12 @@ def datainit(parser: Parser, name: str, typestr: TypeString) -> TypeString:
         parser.list('}', parselist)
     else:
         node = expression(parser, seecommas=False)
-        if node.label == 'string' and typestr[0].type == 'array' and \
-                typestr[1].type == 'char':
-            assert isinstance(node, Leaf)
-            assert isinstance(node.value, bytes)
-            asm(parser, f".dc {','.join((str(v) for v in node.value))}")
-            numelems = len(node.value)
+        if node.label == 'addr' and node[0].label == 'string' and \
+                typestr[0].type == 'array' and typestr[1].type == 'char':
+            assert isinstance(node[0], Leaf)
+            assert isinstance(node[0].value, bytes)
+            asm(parser, f".dc {','.join((str(v) for v in node[0].value))}")
+            numelems = len(node[0].value)
             elemsize = 1
         else:
             asmexpr(parser, node)
@@ -415,8 +415,7 @@ def datadef(parser: Parser, name: str, typestr: TypeString) -> None:
     else:
         # Initializer
         goseg(parser, 'data')
-        deflab(parser, f'_{name}:')
-        pseudo(parser, f'export _{name}')
+        deflab(parser, f'_{name}')
         typestr = datainit(parser, name, typestr)
     symbol = Symbol(
         name,

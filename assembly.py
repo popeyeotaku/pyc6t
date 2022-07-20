@@ -131,9 +131,12 @@ def asmnode(parser: Parser, node: Node) -> None:
             if offset:
                 asm(parser, f'con {offset}')
                 asm(parser, 'add')
-        case 'addr' | 'deref':
+        case 'deref':
             # do nothing
             asmchildren(parser, node)
+        case 'addr':
+            assert len(node.children) == 1
+            asmnode(parser, node.children[0]) # No rval
         case 'call':
             assert len(node.children) >= 1
             for child in reversed(node.children[1:]):
