@@ -1,8 +1,9 @@
 """C6T - C version 6 by Troy - Specifier Parsing and Support Code"""
 
+from math import ceil
 from typing import Callable
-from assembly import asm, deflab, fasm, goseg, pseudo
-from expr import conexpr
+from assembly import asm, asmexpr, deflab, fasm, goseg, pseudo
+from expr import conexpr, expression
 from lexer import Token
 from parse_state import Parser
 from statement import statement
@@ -324,11 +325,72 @@ def funcdef(parser: Parser, name: str, typestr: TypeString,
     parser.exitlocal()
 
 
+def targtype(typestr: TypeString) -> tuple[str, int]:
+    """Determine the storage type from the given type string - used in
+    initializers. Returns the modifier character, and the size of it in
+    bytes.
+    """
+    assert len(typestr) >= 1
+    size = tysize(typestr)
+    match typestr[0].type:
+        case 'float':
+            return 'f', size
+        case 'double':
+            return 'd', size
+        case 'char':
+            return 'c', size
+        case 'point' | 'int' | 'struct' | 'func':
+            return 'w', tysize([Int6])
+        case 'array':
+            assert len(typestr) > 1
+            return targtype(typestr[1:])
+    raise ValueError
+
 # pylint:disable=unused-argument
+
+
 def datainit(parser: Parser, name: str, typestr: TypeString) -> TypeString:
     """Handle a data initializer, returning a typestring that may be modified.
     """
-    # TODO: initializers
+    # At this point, the next input token will be the first one of the initializer.
+
+    cmd, storesize = targtype(typestr) # pylint: disable=unpacking-non-sequence
+    cmd = f'd{cmd}'
+
+    # Two cases: list of initializers in braces, or a single one.
+    totalsize = tysize(typestr)
+    numelems = 0
+
+    if parser.match('{'):
+        def parselist(parser: Parser, token: Token) -> bool:
+            nonlocal numelems
+
+            parser.unsee(token)
+            node = expression(parser, seecommas=False)
+            asmexpr(parser, node)
+            asm(parser, cmd)
+            numelems += 1
+            return True
+        parser.list('}', parselist)
+    else:
+        node = expression(parser, seecommas=False)
+        asmexpr(parser, node)
+        asm(parser, cmd)
+        numelems = 1
+
+    elemsize = storesize * numelems
+    if elemsize > totalsize:
+        typestr = typestr.copy()
+        assert len(typestr) >= 1
+        if typestr[0].type == 'array':
+            # Adjust array size
+            assert len(typestr) >= 2
+            newelems = ceil(elemsize / tysize(typestr[1:]))
+            typestr[0] = TypeElem('array', newelems)
+            totalsize = tysize(typestr)
+    if elemsize < totalsize:
+        asm(parser, f'.ds {totalsize - elemsize}')
+
     return typestr
 
 

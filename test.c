@@ -4,21 +4,17 @@
 #define INDEX 11
 
 struct foobar {
-    char foo, bar;
-    struct foobar *list[FOOBAR];
+    int foo, bar;
+} foobar[] {
+    1, 2, 3, 4, 5, 6, 7
 };
 
 main()
 {
-    static struct foobar foobar;
-    register foo, bar;
+    register struct foobar *pnt;
+    register total;
 
-    foo = foobar.foo = foobar.foo ? foobar.bar : test(foobar.list[INDEX]);
-    bar = foobar.bar = foobar.foo ? foobar.foo : foobar.bar;
-    return (test(foo, bar));
-}
-
-test(foo, bar)
-{
-    return (foo*bar);
+    for (total = 0, pnt = foobar; pnt->foo && pnt->bar; pnt++)
+        total =+ pnt->foo * pnt->bar;
+    return (total);
 }

@@ -76,5 +76,6 @@ def tysize(typestr: TypeString) -> int:
     """Returns the size of the type string in bytes."""
     assert len(typestr) > 0
     if typestr[0].type == 'array':
+        assert len(typestr) > 1
         return tysize(typestr[1:]) * typestr[0].tysize()
     return typestr[0].tysize()
