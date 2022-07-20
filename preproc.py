@@ -67,25 +67,26 @@ class Includer(Iterable[str]):
         return self
 
 
-def replace(line: str, macros: dict[str, str]) -> str:
+re_replacer = re.compile(r'([a-zA-Z_]+[a-zA-Z_0-9]*)|([^a-zA-Z_]+)')
+
+
+def replace(inline: str, macros: dict[str, str]) -> str:
     """Return a version of the line with macros replaced.
     """
-    out = ''
-    keys = sorted(macros.keys(), key=len, reverse=True)
 
-    i = 0
-    while i < len(line):
-        found = False
-        for key in keys:
-            if line[i:].startswith(key):
-                out += macros[key]
-                i += len(key)
-                found = True
-                break
-        if not found:
-            out += line[i]
-            i += 1
-    return out
+    #   #define error ... \n cerror, should NOT result in c...
+
+    line = ''
+    for match in re_replacer.finditer(inline, 0):
+        name, other = match.groups(None)
+        if name is None:
+            line += other
+        else:
+            if name in macros:
+                line += macros[name]
+            else:
+                line += name
+    return line
 
 
 def preproc(source: str) -> str:  # pylint:disable=too-many-branches

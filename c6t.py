@@ -27,7 +27,9 @@ def compile_c6t(source: str) -> str:
 def test():
     """A simple test program.
     """
-    print(compile_c6t(pathlib.Path('ed.c').read_text('utf8')))
+    path = pathlib.Path('ed.ir')
+    asm = compile_c6t(pathlib.Path('ed.c').read_text('utf8'))
+    path.write_text(asm, encoding='utf8')
 
 
 if __name__ == "__main__":

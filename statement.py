@@ -64,7 +64,7 @@ def statement(parser: Parser, retflt: bool):
 
             parser.need('(')
             if not parser.match(';'):
-                asmexpr(parser, expression(parser))
+                asmexpr(parser, expression(parser), 'eval')
                 parser.need(';')
             deflab(parser, parser.contstk[-1])
             if not parser.match(';'):
@@ -79,7 +79,7 @@ def statement(parser: Parser, retflt: bool):
 
             statement(parser, retflt)
             if update:
-                asmexpr(parser, update)
+                asmexpr(parser, update, 'eval')
             asm(parser, f'jmp {parser.contstk[-1]}')
             deflab(parser, parser.brkstk[-1])
 
@@ -156,7 +156,7 @@ def statement(parser: Parser, retflt: bool):
         case 'goto':
             asmexpr(parser, expression(parser))
             parser.need(';')
-            asm(parser, 'stkjmp')
+            asm(parser, 'ijmp')
         case ';':
             return
         case '{':
@@ -182,7 +182,7 @@ def parenexpr(parser: Parser, label: str) -> None:
 def doexpr(parser: Parser):
     """Handle an expression statement.
     """
-    asmexpr(parser, expression(parser))
+    asmexpr(parser, expression(parser), 'eval')
     parser.need(';')
 
 
@@ -211,7 +211,10 @@ def addgoto(parser: Parser, name: str):
 
 def doswitch(parser: Parser, node: Node, cases: dict[int, str],
              default: None | str):
-    """Output assembly for a switch statement."""
+    """Output assembly for a switch statement.
+    
+    TODO: rewrite for new node output
+    """
     goseg(parser, 'data')
     tablab = parser.nextstatic()
     deflab(parser, tablab)

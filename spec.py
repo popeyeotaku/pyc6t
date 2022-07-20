@@ -414,6 +414,9 @@ def datadef(parser: Parser, name: str, typestr: TypeString) -> None:
         pseudo(parser, f'common _{name}, {tysize(typestr)}')
     else:
         # Initializer
+        goseg(parser, 'data')
+        deflab(parser, f'_{name}:')
+        pseudo(parser, f'export _{name}')
         typestr = datainit(parser, name, typestr)
     symbol = Symbol(
         name,

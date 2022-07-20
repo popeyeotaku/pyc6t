@@ -39,11 +39,12 @@ def fasm(parser, line: str, flag: bool) -> None:
     asm(parser, line)
 
 
-def asmexpr(parser: Parser, node: Node) -> None:
+def asmexpr(parser: Parser, node: Node, command:str|None=None) -> None:
     """Assemble an expression tree."""
-    goseg(parser, 'text')
     asmnode(parser, node)
     rval(parser, node)
+    if command is not None:
+        asm(parser, command)
 
 
 def rval(parser: Parser, node: Node) -> None:
