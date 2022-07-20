@@ -41,6 +41,12 @@ class Node(collections.abc.MutableSequence):
 
     def __delitem__(self, key: int) -> None:
         del self.children[key]
+    
+    def floating(self) -> bool:
+        """Return a flag for if this node is floating type or not."""
+        if self.typestr and self.typestr[0].floating:
+            return True
+        return False
 
 
 @dataclass
@@ -198,8 +204,13 @@ def build(parser: Parser, linenum: int, label: str | None,
             node.typestr = [Double6]
             return node
         case 'cond':
-            # TODO: handle ... ? ... : ...
-            raise NotImplementedError
+            assert len(node.children) == 3
+            _, left, right = node.children
+            if left.typestr == right.typestr:
+                node.typestr = left.typestr.copy()
+            else:
+                node.typestr = [Int6] # ? also need floats
+            return node
         case 'deref':
             if children[0].label == 'addr':
                 return children[0]

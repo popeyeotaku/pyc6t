@@ -49,11 +49,6 @@ def asmexpr(parser: Parser, node: Node) -> None:
 def rval(parser: Parser, node: Node) -> None:
     """If the node is an lval, do a load operation.
     """
-    if node.label == 'name':
-        assert isinstance(node, Leaf) and isinstance(node.value, Symbol)
-        if node.value.storage == 'register':
-            asm(parser, f'grabreg {node.value.offset}')
-            return
     if opinfo.islval[node.label]:
         match node.typestr[0].type:
             case 'char':
@@ -80,7 +75,7 @@ def asmval(leaf: Leaf) -> str:
                 case 'auto' | 'register':
                     return f'{value.storage} {value.offset}'
                 case 'extern':
-                    return f'extern {value.name}'
+                    return f'extern _{value.name}'
                 case 'static':
                     return f'extern {value.offset}'
                 case _:
@@ -103,6 +98,19 @@ def asmchildren(parser: Parser, node: Node) -> None:
 def asmnode(parser: Parser, node: Node) -> None:
     """Assemble expression nodes recursively."""
     match node.label:
+        case 'assign':
+            assert len(node.children) == 2
+            match node.children[0].typestr[0].type:
+                case 'float':
+                    label = 'fstore'
+                case 'double':
+                    label = 'dstore'
+                case 'char':
+                    label = 'cstore'
+                case _:
+                    label = 'store'
+            asmchildren(parser, node)
+            asm(parser, label)
         case 'dot' | 'arrow':
             assert len(node.children) == 2
             asmnode(parser, node.children[0])
