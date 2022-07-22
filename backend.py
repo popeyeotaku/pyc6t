@@ -32,7 +32,10 @@ NODECHILDREN: dict[str, int] = {
     'mult': 2,
     'cond': 3,
     'gequ': 2,
-    'lequ': 2
+    'lequ': 2,
+    'cload': 1,
+    'nequ': 2,
+    'less': 2,
 }
 
 

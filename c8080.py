@@ -31,6 +31,14 @@ class Code8080(CodeGen):
         for seg in SEGMENTS:
             self.segs[seg] = ''
         self.curseg = '.text'
+        self.curlab = 0
+
+    def nextlab(self) -> str:
+        """Return a unique temporary label which does not interfere w/ the C6T
+        ones.
+        """
+        self.curlab += 1
+        return f"LL{self.curlab}"
 
     def getasm(self) -> str:
         out = ''
@@ -42,6 +50,7 @@ class Code8080(CodeGen):
         for seg in self.segs:
             self.segs[seg] = ''
         self.curseg = '.text'
+        self.curlab = 0
 
     def asm(self, *lines: str) -> None:
         """Assemble the given line to the current segment."""
@@ -49,20 +58,112 @@ class Code8080(CodeGen):
             self.segs[self.curseg] += f'\t{line}\n'
 
     def deflabel(self, lab: str) -> None:
-        self.segs[self.curseg] += lab
+        self.segs[self.curseg] += f'{lab}:'
+
+    def logical(self, branch_op: str, reg: Reg, *, eqfalse: bool = False,
+                eqtrue: bool = False) -> None:
+        """After assembling a test, assemble code to put 1 or 0 into the
+        target register according to its value, using the given 8080
+        branch instruction.
+
+        If equal false is set, then we also insert a 'je' to logical 0.
+        """
+        lab1, lab2 = self.nextlab(), self.nextlab()
+        if eqfalse:
+            self.asm(f'jne {lab1}')
+        elif eqtrue:
+            self.asm(f'je {lab1}')
+        self.asm(f'{branch_op} {lab1}')
+        self.immed(reg, 0)
+        self.asm(f'jmp {lab2}')
+        self.deflabel(lab1)
+        self.immed(reg, 1)
+        self.deflabel(lab2)
 
     def convert(self, node: Node) -> Node:
         """Recursively convert the node as needed.
         """
+        if 'converted' in node.info:
+            return node
         children = [self.convert(child) for child in node.children]
+        node = Node(node.label, children, node.value)
         match node.label:
+            case 'lognot':
+                match children[0].label:
+                    case 'lognot':
+                        node = children[0]
+                    case 'log':
+                        node.children = children[0].children
+                    case 'brz':
+                        node = self.convert(Node('bnz', children[0].children))
+                    case 'bnz':
+                        node = self.convert(Node('brz', children[0].children))
+            case 'log':
+                if children[0].label == 'lognot':
+                    node = children[0]
+            case 'logor':
+                lab = self.nextlab()
+                node = Node('bnz', [node.children[0], node.children[1], Node
+                                    ('label', value=lab)], value=lab)
+                node = Node('log', [node])
+                node = self.convert(node)
+            case 'logand':
+                assert len(children) == 2
+                lab = self.nextlab()
+                node = Node('brz', children + [Node('label', value=lab)],
+                            value=lab)
+                node = self.convert(Node('log', [node]))
+            case 'brz':
+                match children[0].label:
+                    case 'log':
+                        node.children = children[0].children
+                    case 'lognot':
+                        node = self.convert(Node('bnz', children[0].children))
+            case 'bnz':
+                match children[0].label:
+                    case 'log':
+                        node.children = children[0].children
+                    case 'lognot':
+                        node = self.convert(Node('brz', children[0].children))
+            case 'add':
+                if children[0].label == 'con':
+                    child = children[0]
+                    other = children[1]
+                elif children[1].label == 'con':
+                    child = children[1]
+                    other = children[0]
+                else:
+                    child = None
+                    other = None
+                if child and child.value == 1:
+                    node = Node('inc', [other], info={'converted': True})
+            case 'sub':
+                if children[1].label == 'con' and children[1].value == 1:
+                    node = Node('dec', [children[0]])
+                elif children[1].label == 'con':
+                    child = Node('con', value=-children[1].value)
+                    node = self.convert(Node('add', [children[0], child]))
+                elif children[0].label == 'con':
+                    child = Node('con', value=-children[0].value)
+                    node = self.convert(Node('add', [children[1], child]))
+            case 'load' | 'cload':
+                if children[0].label == 'extern':
+                    node = Node('ext'+node.label, value=children[0].value)
+            case 'store' | 'cstore':
+                children.reverse()
+                if children[1].label == 'extern':
+                    node = Node('ext'+node.label,
+                                [children[0]], children[1].value)
+            case 'great' | 'equ' | 'nequ' | 'uless':
+                node = Node(node.label, [self.convert(Node('sub', children))])
             case 'arg':
-                assert len(children) == 0
-                return children[0]
+                assert len(children) == 1
+                node = children[0]
             case 'register':
-                return Node('extern', children, f'reg{node.value}')
-            case _:
-                return Node(node.label, children, node.value, node.info)
+                node = Node('extern', children, f'reg{node.value}')
+        node.children = [self.convert(child) for child in node.children]
+        node.info['converted'] = True
+        return node
 
     def immed(self, reg: Reg, value) -> None:
         """Get the immediate value into the register."""
@@ -84,14 +185,19 @@ class Code8080(CodeGen):
         children = [self.regcount(child) for child in node.children]
         match node.label:
             # Special cases
+            case 'brz' | 'bnz' | 'label':
+                return max(children) if children else 0
             case 'call':
                 assert len(children) >= 1
-                if children[1:]:
-                    count = max(children[1:])
+                args = children[:-1]
+                func = children[-1]
+                funcnode = node.children[-1]
+                if args:
+                    count = max(args)
                 else:
                     count = 0
-                if children[0].label != 'extern':
-                    count += children[0]
+                if funcnode.label != 'extern':
+                    count += func
             case _:
                 match len(node.children):
                     case 0:
@@ -108,8 +214,8 @@ class Code8080(CodeGen):
 
     def eval(self, node: Node) -> None:
         """Assemble the given node, result being in HL."""
-        node = self.convert(node)
-        self.asmnode(node)
+        converted = self.convert(node)
+        self.asmnode(converted)
 
     def asmchildren(self, node: Node, targreg: Reg) -> None:
         """Assemble the children of the node into registers starting w/
@@ -119,23 +225,32 @@ class Code8080(CodeGen):
             return
         assert len(node.children) <= len(Reg)
         count = self.regcount(node)
-        if count + targreg > len(Reg):
-            stacked: list[Reg] = []
-            for i, child in enumerate(node.children):
+        if len(node.children) > 1 and count + targreg >= len(Reg):
+            assert targreg == Reg.HL
+            ordered = node.children.copy()
+            ordered.sort(key=self.regcount, reverse=True)
+            for child in ordered:
                 self.asmnode(child, targreg)
                 self.asm(f'push {targreg.name}')
-                stacked.append(Reg(targreg+i))
-            for reg in reversed(stacked):
+            for child in reversed(ordered):
+                reg = node.children.index(child)
                 self.asm(f'pop {reg}')
         else:
             for i, child in enumerate(node.children):
                 self.asmnode(child, Reg(i+targreg))
 
     def asmnode(self, node: Node, targreg: Reg = Reg.HL) -> None:
-        """Assemble the node into the given register."""
+        """Assemble the node into the given register.
+
+        Note that the store operands are reversed by convert so the addr
+        should end up in HL -- but you'll need to xchg to get the resulting
+        value back in HL.
+        """
+        reghi = targreg.name[0]
+        reglo = targreg.name[1]
         match node.label:
             # Special cases
-            case 'brz':
+            case 'brz' | 'bnz':
                 # The value is the label to branch to if the first child is
                 # equal to 0.
                 # Optional additional children should be assembled next in
@@ -147,7 +262,8 @@ class Code8080(CodeGen):
                         self.asm('mov a,l', 'ora h')
                     case Reg.DE:
                         self.asm('mov a,e', 'ora d')
-                self.asm(f'je {node.value}')
+                opcode = 'je' if node.label == 'brz' else 'jne'
+                self.asm(f'{opcode} {node.value}')
                 for child in node.children[1:]:
                     self.asmnode(child, targreg)
             case 'label':
@@ -169,8 +285,8 @@ class Code8080(CodeGen):
                 else:
                     saved = False
 
-                args = node.children[1:]
-                func = node.children[0]
+                args = node.children[:-1]
+                func = node.children[-1]
                 for arg in args:
                     self.asmnode(arg, Reg.HL)
                     self.asm('push h')
@@ -182,6 +298,8 @@ class Code8080(CodeGen):
 
                 # Remove args from stack
                 if args:
+                    # We shouldn't need DE's value since if that's the
+                    # targ reg, we want to replace it
                     self.asm(
                         'xchg', f'lhld {len(args)*2}', 'dad sp', 'sphl',
                         'xchg')
@@ -193,6 +311,52 @@ class Code8080(CodeGen):
             case _:
                 self.asmchildren(node, targreg)
                 match node.label:
+                    case 'extcload':
+                        self.asm(f'lda {node.value}', f'mov {reglo},a')
+                        self.asm(f'mvi {reghi},0')
+                    case 'extcstore':
+                        self.asm(f'mov a,{reglo}', f'sta {node.value}')
+                    case 'cload':
+                        match targreg:
+                            case Reg.HL:
+                                self.asm('mov a,m')
+                            case Reg.DE:
+                                self.asm('ldax d')
+                        self.asm(f'mov {reglo},a', f'mvi {reghi},0')
+                    case 'cstore':
+                        self.asm('mov e,m', 'xchg')
+                    case 'inc':
+                        self.asm(f'inx {targreg.name}')
+                    case 'dec':
+                        self.asm(f'dcx {targreg.name}')
+                    case 'extload':
+                        match targreg:
+                            case Reg.HL:
+                                self.asm(f'lhld {node.value}')
+                            case Reg.DE:
+                                self.asm(f'lda {node.value}', 'mov e,a')
+                                self.asm(f'lda {node.value}+1', 'mov d,a')
+                    case 'extstore':
+                        match targreg:
+                            case Reg.HL:
+                                self.asm(f'shld {node.value}')
+                            case Reg.DE:
+                                self.asm('mov a,e', f'sta {node.value}')
+                                self.asm('mov a,d', f'sta {node.value}+1')
+                    case 'great':
+                        self.logical('jcs', targreg, eqfalse=True)
+                    case 'gequ':
+                        self.logical('jcs', targreg, eqtrue=True)
+                    case 'nequ':
+                        self.logical('jne', targreg)
+                    case 'equ':
+                        self.logical('je', targreg)
+                    case 'uless':
+                        self.logical('jcs', targreg, eqfalse=True)
+                    case 'less':
+                        self.logical('jcc', targreg, eqfalse=True)
+                    case 'lequ':
+                        self.logical('jcc', targreg, eqtrue=True)
                     case 'auto':
                         if targreg == Reg.DE:
                             self.asm('xchg')
@@ -209,8 +373,7 @@ class Code8080(CodeGen):
                             self.asm('xchg')
                     case 'store':
                         assert targreg == Reg.HL  # SHOULD be the only case
-                        self.asm('xchg', 'mov m,e', 'inx h', 'mov m,d',
-                                 'xchg')
+                        self.asm('mov m,e', 'inx h', 'mov m,d', 'xchg')
                     case 'extern' | 'con':
                         self.immed(targreg, node.value)
                     case 'add':
@@ -218,15 +381,19 @@ class Code8080(CodeGen):
                         self.asm('dad d')
                     case 'sub':
                         assert targreg == Reg.HL
-                        self.asm('mov a,e', 'sub l', 'mov l,a')
-                        self.asm('mov a,d', 'sbb h', 'mov h,a')
+                        self.asm('mov a,l', 'sub e', 'mov l,a')
+                        self.asm('mov a,h', 'sbb d', 'mov h,a')
                     case 'cstore':
                         assert targreg == Reg.HL
                         self.asm('xchg', 'mov m,e', 'xchg')
                     case 'mult':
                         self.asm('call cmult')
+                    case 'log':
+                        self.logical('jne', targreg)
+                    case 'lognot':
+                        self.logical('je', targreg)
                     case _:
-                        raise NotImplementedError
+                        raise NotImplementedError(node.label)
 
     def asmret(self) -> None:
         """Output standard assembly for a return."""
@@ -262,8 +429,10 @@ class Code8080(CodeGen):
             case 'retnull':
                 self.asmret()
             case 'ret':
-                self.eval(nodestk.pop)
+                self.eval(nodestk.pop())
                 self.asmret()
+            case '.ds':
+                self.asm(f'.ds {command.args[0]}')
             case _:
                 raise ValueError('unsupport command', command)
 

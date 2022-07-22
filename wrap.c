@@ -5,21 +5,26 @@
 #define BUFLEN 512
 char wordbuf[BUFLEN];
 int wordlen;
+char foundnl;
 
 wrap(linewidth)
 {
-        register left;
+        register left, line;
 
-        left = linewidth;
+        left = line = linewidth;
         while (inword()) {
-                if (wordlen + 1 > left) {
+                if (foundnl) {
+                        putchar('\n');
+                        left = line - wordlen;
+                }
+                else if (wordlen + 1 > left) {
                         putchar('\n');
                         outword();
-                        left = linewidth - wordlen;
+                        left = line - wordlen;
                 }
                 else {
                         outword();
-                        left = left - (wordlen + 1);
+                        left = left - wordlen + 1;
                 }
         }
         flush();
@@ -28,19 +33,38 @@ wrap(linewidth)
 inword()
 {
         register c;
+        static peeked;
         register char *pnt;
 
+        foundnl = 0;
         pnt = wordbuf;
 
         /* skip leading whitespace */
-        while (c = getchar()) {
-                if (!ws(c)) break;
+        if (peeked) {
+                c = peeked;
+                peeked = 0;
         }
+        else c = getchar();
+        do {
+                if (c && c != ' ' && c != '\t') break;
+        } while (c = getchar());
+
         if (!c) return (0);
 
+        if (c == '\n') {
+                foundnl = 1;
+                return (1);
+        }
+
         do {
-                if (ws(c)) break;
-                if (pnt < &wordbuf[BUFLEN-1]) *pnt++ = c;
+                if (!c || c == ' ' || c == '\t' || c == '\n') {
+                        peeked = c;
+                        break;
+                }
+                if (pnt < &wordbuf[BUFLEN-1]) {
+                        *pnt = c;
+                        pnt = pnt + 1;
+                }
         } while (c = getchar());
         *pnt = 0;
 
@@ -56,18 +80,14 @@ main(argc, argv) char **argv;
         wrap(width);
 }
 
-ws(c)
-{
-        return (c == ' ' || c == '\t' || c == '\n');
-}
-
 outword()
 {
         register char *pnt;
         register c;
 
         pnt = wordbuf;
-        while (c = *pnt++) putchar(c);
+        for (pnt = wordbuf; c = *pnt; pnt = pnt + 1)
+                putchar(c);
         putchar(' ');
 }
 
@@ -80,11 +100,16 @@ atoi(string)
         i = 0;
         pnt = string;
 
-        while (!digit(*pnt)) pnt++;
+        while (!digit(*pnt)) pnt = pnt + 1;
 
-        while (digit(c = *pnt++)) i = i * 10 + c - '0';
+        while (digit(c = *pnt)) {
+                i = i * 10 + c - '0';
+                pnt = pnt + 1;
+        }
 
-        return (i ? i : DEFAULT);
+        if (i > 0)
+                return (i);
+        else return (DEFAULT);
 }
 
 digit(c)
