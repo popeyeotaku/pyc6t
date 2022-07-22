@@ -5,8 +5,10 @@ from pathlib import Path
 import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Iterable
+from typing import Iterable, Sequence
 from pprint import pp
+
+AtomType = str | int | float
 
 NODECHILDREN: dict[str, int] = {
     'register': 0,
@@ -35,10 +37,16 @@ NODECHILDREN: dict[str, int] = {
 
 
 @dataclass
-class Command:
+class Command(Sequence):
     """An assembly instruction."""
     cmd: str
-    args: list[str] = field(default_factory=list)
+    args: list[str | int] = field(default_factory=list)
+
+    def __len__(self) -> int:
+        return len(self.args)
+
+    def __getitem__(self, key) -> AtomType:
+        return self.args[key]
 
 
 @dataclass
@@ -52,7 +60,7 @@ class Node:
     """A backend node."""
     label: str
     children: list[Node] = field(default_factory=list)
-    value: Any = None
+    value: AtomType | None | list[AtomType] = None
     info: dict = field(default_factory=dict)
 
 
@@ -61,18 +69,22 @@ class CodeGen(ABC):
     @abstractmethod
     def reset(self) -> None:
         """Reset the codegen backend for a new runthru on a new IR."""
+        raise NotImplementedError
 
     @abstractmethod
     def getasm(self) -> str:
         """Return the assembled output."""
+        raise NotImplementedError
 
     @abstractmethod
     def command(self, command: Command, nodestk: list[Node]) -> None:
         """Run an assembly command."""
+        raise NotImplementedError
 
     @abstractmethod
     def deflabel(self, lab: str) -> None:
         """Define the given label here."""
+        raise NotImplementedError
 
 
 class IRParser(Iterable[Node | Command | Label]):
@@ -83,12 +95,17 @@ class IRParser(Iterable[Node | Command | Label]):
         self.i = 0
 
     @property
+    def linenum(self) -> int:
+        """Current input line number."""
+        return 1 + self.source[:self.i].count('\n')
+
+    @property
     def text(self) -> str:
         """Return the IR source from the given index position on."""
         return self.source[self.i:]
 
     def __iter__(self):
-        return IRParser(self.source)
+        return self
 
     def skipws(self) -> bool:
         """Skip leading whitespace, NOT including newlines. Return a flag for
@@ -110,15 +127,18 @@ class IRParser(Iterable[Node | Command | Label]):
                 else:
                     break
 
-    def atom(self) -> str | int:
+    def atom(self) -> AtomType:
         """Remove the next atom from the source, returning it."""
         self.skipws()
-        if match := re.match(r'\d+', self.text):
-            self.i += len(match[0])
-            return int(match[0])
         if match := re.match(r'[^\s,\n:]+', self.text):
             self.i += len(match[0])
-            return match[0]
+            try:
+                return int(match[0])
+            except ValueError:
+                try:
+                    return float(match[0])
+                except ValueError:
+                    return match[0]
         raise ValueError('no atom here')
 
     def match(self, text: str) -> bool:
@@ -157,18 +177,20 @@ def backend(source: str, codegen: CodeGen) -> str:
     codegen.reset()
     nodestk: list[Node] = []
 
-    for elem in IRParser(source):
+    parser = IRParser(source)
+    for elem in parser:
         if isinstance(elem, Node):
             if elem.label in NODECHILDREN:
                 if elem.label == 'call':
                     assert isinstance(elem.value, int)
-                    count = elem.value
+                    count = elem.value + 1
                 else:
                     count = NODECHILDREN[elem.label]
-                if len(nodestk) < count:
-                    raise ValueError('not enough nodes')
-                elem.children.extend(nodestk[-count:])
-                del nodestk[-count:]
+                if count:
+                    if len(nodestk) < count:
+                        raise ValueError('not enough nodes')
+                    elem.children.extend(nodestk[-count:])
+                    del nodestk[-count:]
             nodestk.append(elem)
         elif isinstance(elem, Label):
             codegen.deflabel(elem.lab)

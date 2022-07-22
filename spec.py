@@ -217,6 +217,7 @@ def funcdef(parser: Parser, name: str, typestr: TypeString,
     goseg(parser, 'text')
     deflab(parser, '_' + name)
     pseudo(parser, f'export _{name}')
+    pseudo(parser, f'func _{name}')
 
     functype = typestr
 
