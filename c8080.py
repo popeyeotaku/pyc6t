@@ -62,7 +62,7 @@ class Code8080(CodeGen):
 
     def logical(self, branch_op: str, reg: Reg, *, eqfalse: bool = False,
                 eqtrue: bool = False) -> None:
-        """After assembling a test, assemble code to put 1 or 0 into the
+        """After assembling a , assemble code to put 1 or 0 into the
         target register according to its value, using the given 8080
         branch instruction.
 
@@ -233,8 +233,8 @@ class Code8080(CodeGen):
                 self.asmnode(child, targreg)
                 self.asm(f'push {targreg.name}')
             for child in reversed(ordered):
-                reg = node.children.index(child)
-                self.asm(f'pop {reg}')
+                reg = Reg(node.children.index(child))
+                self.asm(f'pop {reg.name}')
         else:
             for i, child in enumerate(node.children):
                 self.asmnode(child, Reg(i+targreg))
@@ -444,7 +444,8 @@ def test():
     try:
         backend.backend(path.read_text('utf8'), codegen)
     finally:
-        print(codegen.getasm())
+        out = Path('wrap.s')
+        out.write_text(codegen.getasm(), encoding='utf8')
 
 
 if __name__ == "__main__":

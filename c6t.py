@@ -37,11 +37,7 @@ def main(name:PathLike):
 def test():
     """Compile some test programs.
     """
-    main('test.c')
-    main('cat.c')
     main('wrap.c')
-    main('glob.c')
-    main('ed.c')
 
 if __name__ == "__main__":
     test()

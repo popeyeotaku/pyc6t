@@ -6,3 +6,4 @@ ed.c
 ed.ir
 *.ir
 glob.c
+wrap.s

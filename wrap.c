@@ -5,7 +5,7 @@
 #define BUFLEN 512
 char wordbuf[BUFLEN];
 int wordlen;
-char foundnl;
+int foundnl;
 
 wrap(linewidth)
 {
