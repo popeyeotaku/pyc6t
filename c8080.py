@@ -69,11 +69,15 @@ class Code8080(CodeGen):
         If equal false is set, then we also insert a 'je' to logical 0.
         """
         lab1, lab2 = self.nextlab(), self.nextlab()
+        lab3 = None
         if eqfalse:
-            self.asm(f'jne {lab1}')
+            lab3 = self.nextlab()
+            self.asm(f'je {lab3}')
         elif eqtrue:
             self.asm(f'je {lab1}')
         self.asm(f'{branch_op} {lab1}')
+        if lab3:
+            self.deflabel(lab3)
         self.immed(reg, 0)
         self.asm(f'jmp {lab2}')
         self.deflabel(lab1)
@@ -103,16 +107,28 @@ class Code8080(CodeGen):
                     node = children[0]
             case 'logor':
                 lab = self.nextlab()
-                node = Node('bnz', [node.children[0], node.children[1], Node
-                                    ('label', value=lab)], value=lab)
-                node = Node('log', [node])
-                node = self.convert(node)
+                node = self.convert(
+                    Node('log', [
+                        Node('bnz',
+                             [node.children[0]] +
+                             [Node('jmp', value=lab)] +
+                             node.children[1:] +
+                             [Node('label', value=lab)]
+                             )
+                    ], value=lab)
+                )
             case 'logand':
                 assert len(children) == 2
                 lab = self.nextlab()
-                node = Node('brz', children + [Node('label', value=lab)],
-                            value=lab)
-                node = self.convert(Node('log', [node]))
+                node = Node('log', [
+                    Node('brz',
+                         [children[0]] + [Node('jmp', value=lab)] +
+                         children[1:] + [Node('label', value=lab)], value=lab)
+                ])
+                node = self.convert(node)
+            case 'equ' | 'nequ':
+                label = 'log' if node.label == 'equ' else 'lognot'
+                node = self.convert(Node(label, [Node('sub', node.children)]))
             case 'brz':
                 match children[0].label:
                     case 'log':
@@ -137,15 +153,7 @@ class Code8080(CodeGen):
                     other = None
                 if child and child.value == 1:
                     node = Node('inc', [other], info={'converted': True})
-            case 'sub':
-                if children[1].label == 'con' and children[1].value == 1:
-                    node = Node('dec', [children[0]])
-                elif children[1].label == 'con':
-                    child = Node('con', value=-children[1].value)
-                    node = self.convert(Node('add', [children[0], child]))
-                elif children[0].label == 'con':
-                    child = Node('con', value=-children[0].value)
-                    node = self.convert(Node('add', [children[1], child]))
+            # CAN'T DO 'sub' -> 'add'/'dec' conversions if used for testing!
             case 'load' | 'cload':
                 if children[0].label == 'extern':
                     node = Node('ext'+node.label, value=children[0].value)
@@ -154,7 +162,7 @@ class Code8080(CodeGen):
                 if children[1].label == 'extern':
                     node = Node('ext'+node.label,
                                 [children[0]], children[1].value)
-            case 'great' | 'equ' | 'nequ' | 'uless':
+            case 'great' | 'less' | 'uless' | 'ugreat':
                 node = Node(node.label, [self.convert(Node('sub', children))])
             case 'arg':
                 assert len(children) == 1
@@ -185,7 +193,7 @@ class Code8080(CodeGen):
         children = [self.regcount(child) for child in node.children]
         match node.label:
             # Special cases
-            case 'brz' | 'bnz' | 'label':
+            case 'brz' | 'bnz' | 'label' | 'jmp':
                 return max(children) if children else 0
             case 'call':
                 assert len(children) >= 1
@@ -239,6 +247,14 @@ class Code8080(CodeGen):
             for i, child in enumerate(node.children):
                 self.asmnode(child, Reg(i+targreg))
 
+    def test(self, targreg: Reg) -> None:
+        """Assemble to test via oring the given register."""
+        match targreg:
+            case Reg.HL:
+                self.asm('mov a,l', 'ora h')
+            case Reg.DE:
+                self.asm('mov a,e', 'ora d')
+
     def asmnode(self, node: Node, targreg: Reg = Reg.HL) -> None:
         """Assemble the node into the given register.
 
@@ -250,6 +266,8 @@ class Code8080(CodeGen):
         reglo = targreg.name[1]
         match node.label:
             # Special cases
+            case 'jmp':
+                self.asm(f'jmp {node.value}')
             case 'brz' | 'bnz':
                 # The value is the label to branch to if the first child is
                 # equal to 0.
@@ -257,11 +275,7 @@ class Code8080(CodeGen):
                 # order.
                 assert len(node.children) >= 1
                 self.asmnode(node.children[0], targreg)
-                match targreg:
-                    case Reg.HL:
-                        self.asm('mov a,l', 'ora h')
-                    case Reg.DE:
-                        self.asm('mov a,e', 'ora d')
+                self.test(targreg)
                 opcode = 'je' if node.label == 'brz' else 'jne'
                 self.asm(f'{opcode} {node.value}')
                 for child in node.children[1:]:
@@ -347,10 +361,6 @@ class Code8080(CodeGen):
                         self.logical('jcs', targreg, eqfalse=True)
                     case 'gequ':
                         self.logical('jcs', targreg, eqtrue=True)
-                    case 'nequ':
-                        self.logical('jne', targreg)
-                    case 'equ':
-                        self.logical('je', targreg)
                     case 'uless':
                         self.logical('jcs', targreg, eqfalse=True)
                     case 'less':
@@ -389,8 +399,10 @@ class Code8080(CodeGen):
                     case 'mult':
                         self.asm('call cmult')
                     case 'log':
+                        self.test(targreg)
                         self.logical('jne', targreg)
                     case 'lognot':
+                        self.test(targreg)
                         self.logical('je', targreg)
                     case _:
                         raise NotImplementedError(node.label)
