@@ -1,6 +1,5 @@
 """C6T - C version 6 by Troy - Main Compiler File"""
 
-from os import PathLike
 import pathlib
 from assembly import deflab, goseg, pseudo
 from lexer import Tokenizer
@@ -37,7 +36,7 @@ def main(name:pathlib.Path|str):
 def test():
     """Compile some test programs.
     """
-    main('test.c')
+    main('hello.c')
 
 if __name__ == "__main__":
     test()
