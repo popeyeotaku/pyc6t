@@ -25,7 +25,7 @@ def compile_c6t(source: str) -> str:
     return parser.asm
 
 
-def main(name:PathLike):
+def main(name:pathlib.Path|str):
     """Compile the given file.
     """
     name = pathlib.Path(name)
@@ -37,7 +37,7 @@ def main(name:PathLike):
 def test():
     """Compile some test programs.
     """
-    main('wrap.c')
+    main('test.c')
 
 if __name__ == "__main__":
     test()

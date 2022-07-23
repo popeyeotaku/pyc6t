@@ -66,6 +66,15 @@ class Node:
     value: AtomType | None | list[AtomType] = None
     info: dict = field(default_factory=dict)
 
+    def __iter__(self):
+        return iter(self.children)
+
+    def __len__(self):
+        return len(self.children)
+
+    def __getitem__(self, key):
+        return self.children[key]
+
 
 class CodeGen(ABC):
     """Contains specific codegen details for your platform."""

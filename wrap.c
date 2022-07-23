@@ -1,6 +1,6 @@
 #
 
-#define DEFAULT 80
+#define WIDTH 80
 
 #define BUFLEN 512
 char wordbuf[BUFLEN];
@@ -71,15 +71,6 @@ inword()
         return (wordlen = pnt - wordbuf);
 }
 
-main(argc, argv) char **argv;
-{
-        register width;
-
-        if (argc < 2) width = DEFAULT;
-        else width = atoi(argv[1]);
-        wrap(width);
-}
-
 outword()
 {
         register char *pnt;
@@ -91,28 +82,39 @@ outword()
         putchar(' ');
 }
 
-atoi(string)
-{
-        register char *pnt;
-        register c;
-        register i;
-
-        i = 0;
-        pnt = string;
-
-        while (!digit(*pnt)) pnt = pnt + 1;
-
-        while (digit(c = *pnt)) {
-                i = i * 10 + c - '0';
-                pnt = pnt + 1;
-        }
-
-        if (i > 0)
-                return (i);
-        else return (DEFAULT);
-}
-
 digit(c)
 {
         return (c >= '0' && c <= '9');
+}
+
+
+/* 2SIO support */
+
+#define SIO 020
+#define SIODAT 021
+#define SIOXMIT 02
+
+#define SIOSHAKE 0
+#define SIODATA 7
+#define SIOCLK 0
+
+int siostart;
+
+putchar(c)
+{
+        if (!siostart) initsio();
+        while (!(in80(SIO)&SIOXMIT))
+                ;
+        out80(SIODAT, c);
+}
+
+sioinit()
+{
+        out80(SIO, SIOSHAKE<<5|SIODATA<<2|SIOCLK);
+        siostart = 1;
+}
+
+main()
+{
+        wrap(WIDTH);
 }
