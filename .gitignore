@@ -7,3 +7,4 @@ ed.ir
 *.ir
 glob.c
 wrap.s
+hello.s

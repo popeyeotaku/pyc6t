@@ -176,9 +176,13 @@ class IRParser(Iterable[Node | Command | Label]):
             while self.match(','):
                 args.append(self.atom())
         if atom in NODECHILDREN:
-            return Node(atom, [],
-                        None if len(args) == 0 else
-                        args[0] if len(args) == 1 else args)
+            if len(args) == 0:
+                val = None
+            elif len(args) == 1:
+                val = args[0]
+            else:
+                val = args
+            return Node(atom, [], val)
         return Command(atom, args)
 
 

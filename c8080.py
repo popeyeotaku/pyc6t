@@ -27,16 +27,15 @@ def newsegs() -> dict[str, str]:
 
 class Reg(IntEnum):
     """Intel 8080 physical registers."""
-    HL = 0
-    DE = 1
+    HL = 1
+    DE = 2
 
 
 class TRegs(Enum):
     """Specifies which registers results and operand are from.
     """
     HL = auto()
-    DE_HL = auto()
-    DE_DE = auto()
+    DE = auto()
     ANY = auto()
     BINARY = auto()
     SPECIAL = auto()
@@ -48,7 +47,37 @@ class Node:
     label: str
     left: Node | None = None
     right: Node | None = None
-    value: Any | None = field(default=None, hash=False, compare=False)
+    value: Any | None = None
+
+    @property
+    def children(self) -> tuple[Node | None, Node | None]:
+        """Return this node's children."""
+        return self.left, self.right
+
+    @classmethod
+    def join(cls, label: str, *nodes: Node) -> Node:
+        """Join a bunch of nodes binarily using the given label.
+
+        Each node of that label will have its value as the left child (one of
+        the nodes), and either another node of that label as its right child,
+        or None if end of the list.
+        """
+        if len(nodes) == 0:
+            return Node(label)
+        start = Node(label, nodes[0])
+        for node in nodes[1:]:
+            start = cls._joinrep(start, node)
+        return start
+
+    @classmethod
+    def _joinrep(cls, node: Node, append: Node) -> Node:
+        """Append the given node to the end of the chain, returning the new
+        one, recursively.
+        """
+        if node.right:
+            return Node(node.label, node.left,
+                        cls._joinrep(node.right, append), node.value)
+        return Node(node.label, node.left, append, node.value)
 
 
 @dataclass
@@ -95,8 +124,9 @@ class Template:
     require: Require
     action: str
     regs: TRegs = TRegs.BINARY
-    leftreq: Require = Require
-    rightreq: Require = Require
+    leftreq: Require = field(default_factory=Require)
+    rightreq: Require = field(default_factory=Require)
+    commutative: bool = False
 
     def __post_init__(self):
         for req in 'require', 'leftreq', 'rightreq':
@@ -112,15 +142,15 @@ class Template:
                 actstr = actstr[:-1]
             object.__setattr__(self, 'action', actstr)
         if not isinstance(self.regs, TRegs):
-            object.__setattr__(self, 'regs', TRegs(self.regs))
+            object.__setattr__(self, 'regs', TRegs[self.regs])
         if self.require.label is None:
             raise ValueError('main Require for a Template (template.require) '
                              'cannot be None')
 
     def match(self, node: Node) -> bool:
         """Try to match this template against a given node."""
-        return all((require.match(node) for require in
-                    (self.require, self.leftreq, self.rightreq)))
+        return self.require.match(node) and self.leftreq.match(node.left) \
+            and self.rightreq.match(node.right)
 
     def expand(self, state: CodeState, node: Node, reg: Reg = Reg.HL) -> str:
         """Return an expanded version of the node."""
@@ -130,10 +160,14 @@ class Template:
         if 'T1' in action:
             temp1 = state.temp()
 
-        action.replace('LV', node.left.value)
-        action.replace('RV', node.right.value)
-        action.removeprefix('V', node.value)
-        action.replace('R', Reg(reg).name[0].lower())
+        action = action.replace('T1', str(temp1))
+        action = action.replace('RLOW', Reg(reg).name[1].lower())
+        if node.left:
+            action = action.replace('LV', str(node.left.value))
+        if node.right:
+            action = action.replace('RV', str(node.right.value))
+        action = action.replace('V', str(node.value))
+        action = action.replace('R', Reg(reg).name[0].lower())
 
         out = ''
         for line in action.splitlines():
@@ -186,6 +220,48 @@ class Scheme(Mapping[str, tuple[Template, ...]]):
             if not isinstance(templ, dict):
                 raise TypeError
             scheme.add(Template(**templ))
+        return scheme
+
+
+class CachedMatcher:
+    """Caches matches from nodes to templates."""
+
+    def __init__(self, scheme: Scheme) -> None:
+        self._scheme = scheme
+        self._cache: dict[tuple[Node, Reg], Template] = {}
+
+    def match(self, node: Node, reg: Reg) -> Template:
+        """Match the given node and register to a template."""
+        try:
+            return self._cache[(node, reg)]
+        except KeyError:
+            matched = self._match(node, reg)
+            self._cache[(node, reg)] = matched
+            return matched
+
+    def require(self, node: Node, *templs: Template) -> list[Template]:
+        """Return only those templates whose requirements match the node."""
+        return [templ for templ in templs if templ.match(node)]
+
+    def _match(self, node: Node, reg: Reg) -> Template:
+        """Find a new matching template."""
+        templs = self.require(node, *self._scheme[node.label])
+        # Try to match unarily DE or HL first
+        if reg == Reg.DE:
+            checks = [templ for templ in templs if templ.regs in (TRegs.DE,
+                                                                  TRegs.ANY)]
+            if checks:
+                return checks[0]
+            return self.match(node, Reg.HL)
+        if reg == Reg.HL:
+            checks = [templ for templ in templs if templ.regs in (TRegs.HL,
+                                                                  TRegs.ANY)]
+            if checks:
+                return checks[0]
+        # Finally, try a SPECIAL or BINARY
+        if templs:
+            return templs[0]
+        raise ValueError('no match', node, reg)
 
 
 class Code80(CodeGen):
@@ -197,6 +273,7 @@ class Code80(CodeGen):
         path = Path(templates)
         scheme = path.read_text('utf8')
         self.scheme: Scheme = Scheme.from_json(scheme)
+        self.matcher = CachedMatcher(self.scheme)
 
     def reset(self) -> None:
         self.state = CodeState()
@@ -220,18 +297,165 @@ class Code80(CodeGen):
     def deflabel(self, lab: str) -> None:
         self.asm(f'{lab}:\n')
 
-    def command(self, command: Command, nodestk: list[BackNode]) -> None:
-        if command.cmd in self.scheme:
-            if command.args:
-                arg = command.args[0]
-            else:
-                arg = None
-            fakenode = Node(command.cmd, value=arg)
-            out = self.scheme[command.cmd][0].expand(self.state, fakenode)
-            self.asm(out)
-        match command.cmd:
+    def convert(self, node: BackNode | Node) -> Node:
+        """Convert the backend nodes to new nodes."""
+        if isinstance(node, Node):
+            return node
+
+        assert isinstance(node, BackNode)
+        children = [self.convert(child) for child in node.children] + [None,
+                                                                       None]
+        label = node.label
+        value = node.value
+        match node.label:
+            case 'register':
+                label = 'extern'
+                value = f'reg{node.value}'
+            case 'call':
+                children = children[:-2]  # Remove Nones
+                func, args = children[-1], children[:-1]
+                args = Node.join('comma', *args)
+                children = [func, args, None, None]
+
+        return Node(label, children[0], children[1], value)
+
+    def eval(self, node: Node) -> None:
+        """Evaluate the given node, assembling it."""
+        self.evalnode(node, Reg.HL)
+
+    def evalnode(self, node: Node | None, reg: Reg) -> None:
+        """Recursively assemble the given node into the given register.
+
+        If the node is SPECIAL, special case it. If it's BINARY (2 register),
+        then either the right node can be computed in one chain of DE/HL
+        operations (no SPECIAL or BINARY) or not. If it can compute it as such
+        into DE, then compute the left node into HL, then the right into DE.
+        If the right node can be computed into HL unarily, and the left node
+        as well, then compute the right node first, xchg it into DE, then the
+        left node. In the default case, do the right node, push it, then the
+        left node.
+        """
+        if node is None:
+            return
+        match = self.match(node, reg)
+        left, right = self.subreq(node, match)
+        match match.regs:
+            case TRegs.HL | TRegs.DE | TRegs.ANY:
+                assert not (left and right)
+                self.evalnode(left, reg)
+                self.evalnode(right, reg)
+            case TRegs.BINARY:
+                assert reg == Reg.HL
+                uleft = self.unarily(node.left, Reg.HL)
+                uright = self.unarily(node.right, Reg.DE)
+                if uright == Reg.DE:
+                    self.evalnode(node.left, Reg.HL)
+                    self.evalnode(node.right, Reg.DE)
+                elif uright == Reg.HL and uleft is not None:
+                    self.evalnode(node.right, Reg.HL)
+                    self.asm('xchg')
+                    self.evalnode(node.left, Reg.HL)
+                else:
+                    self.evalnode(node.right, Reg.HL)
+                    self.asm('push h')
+                    self.evalnode(node.left, Reg.HL)
+                    self.asm('pop d')
+            case TRegs.SPECIAL:
+                match node.label:
+                    case 'call':
+                        self.evalnode(right, Reg.HL)
+                        self.evalnode(left, Reg.HL)
+                    case 'comma' | 'brz':
+                        self.evalnode(left, Reg.HL)
+                        self.evalnode(right, Reg.HL)
+                    case _:
+                        raise ValueError(node.label)
             case _:
-                raise ValueError(command)
+                raise ValueError(match.regs)
+        self.expand(match, node, reg)
+
+    def expand(self, match: Template, node: Node, reg: Reg) -> None:
+        """Assemble the matched template."""
+        self.asm(match.expand(self.state, node, reg))
+
+    def match(self, node: Node, reg: Reg) -> Template:
+        """Try to match the given node into the given register."""
+        return self.matcher.match(node, reg)
+
+    def unarily(self, node: Node | None, reg: Reg) -> Reg | None:
+        """If we can match the node recursively such that it only computes
+        into the given reg or HL, with no binary or special matches, return
+        the register matched. Else, return None.
+        """
+        if node is None:
+            return reg
+        match = self.match(node, reg)
+        match match.regs:
+            case TRegs.DE:
+                matchreg = Reg.DE
+            case TRegs.HL:
+                matchreg = Reg.HL
+            case TRegs.ANY:
+                matchreg = reg
+            case _:
+                return None
+        if reg == Reg.DE and matchreg != reg:
+            return self.unarily(node, Reg.HL)
+        left, right = self.subreq(node, match)
+        if right:
+            assert left is None
+            left = right
+        if left:
+            child = self.unarily(left, reg)
+            if child == reg:
+                return reg
+            if child == Reg.HL:
+                return self.unarily(node, Reg.HL)
+            return None
+        return reg
+
+    def subreq(self, node: Node, match: Template) -> tuple[Node | None,
+                                                           Node | None]:
+        """Return a version of the node with its children removed if they were
+        matched by the given template via their requirements.
+        """
+        left, right = node.children
+        if match.leftreq.label:
+            left = None
+        if match.rightreq.label:
+            right = None
+        return left, right
+
+    def command(self, command: Command, nodestk: list[BackNode]) -> None:
+        match command.cmd:
+            case '.text' | '.data' | '.string' | '.bss':
+                self.state.curseg = command.cmd
+            case '.export' | 'useregs':
+                pass
+            case 'eval':
+                self.eval(self.convert(nodestk.pop()))
+            case 'brz':
+                self.eval(Node('brz', self.convert(nodestk.pop()),
+                               value=command.args[0]))
+            case '.dc':
+                line = f".dc {','.join((str(arg) for arg in command.args))}"
+                self.asmlines(line)
+            case 'retnull':
+                self.asmlines('jmp cret')
+            case 'ret':
+                self.eval(self.convert(nodestk.pop()))
+                self.asmlines('jmp cret')
+            case _:
+                if command.cmd in self.scheme:
+                    if command.args:
+                        arg = command.args[0]
+                    else:
+                        arg = None
+                    fakenode = Node(command.cmd, value=arg)
+                    self.expand(self.scheme[command.cmd][0],
+                                fakenode, Reg.HL)
+                else:
+                    raise ValueError(command)
 
 
 def test(source: PathType):
@@ -240,8 +464,10 @@ def test(source: PathType):
     irsrc = c6t.compile_c6t(path.read_text('utf8'))
     path.with_suffix('.ir').write_text(irsrc, 'utf8')
     codegen = Code80()
-    asm = dobackend(irsrc, codegen)
-    path.with_suffix('.s').write_text(asm, 'ascii')
+    try:
+        dobackend(irsrc, codegen)
+    finally:
+        path.with_suffix('.s').write_text(codegen.getasm(), 'ascii')
 
 
 if __name__ == "__main__":

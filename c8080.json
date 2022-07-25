@@ -1,5 +1,5 @@
 [{
-        "require": ["func"],
+        "require": [".func"],
         "regs": "SPECIAL",
         "action": [
             "push b",
@@ -104,7 +104,7 @@
     {
         "require": ["store"],
         "regs": "HL",
-        "rightreq": ["extern"],
+        "leftreq": ["extern"],
         "action": [
             "shld LV"
         ]
@@ -120,7 +120,7 @@
     },
     {
         "require": ["brz"],
-        "regs": "HL",
+        "regs": "SPECIAL",
         "action": [
             "mov a,h",
             "ora l",
@@ -159,7 +159,8 @@
     },
     {
         "require": ["add"],
-        "action": "dad d"
+        "action": "dad d",
+        "commutative": true
     },
     {
         "require": ["and"],
@@ -170,7 +171,8 @@
             "mov a,h",
             "ana d",
             "mov h,a"
-        ]
+        ],
+        "commutative": true
     },
     {
         "require": ["lognot"],
@@ -183,5 +185,23 @@
             "inx h",
             "DT1"
         ]
+    },
+    {
+        "require": ["auto"],
+        "regs": "HL",
+        "action": [
+            "lxi h,V",
+            "dad sp"
+        ]
+    },
+    {
+        "require": ["comma"],
+        "action": "",
+        "regs": "SPECIAL"
+    },
+    {
+        "require": ["jmp"],
+        "action": "jmp V",
+        "regs": "SPECIAL"
     }
 ]
