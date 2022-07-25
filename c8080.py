@@ -1,98 +1,248 @@
-"""C6T - C version 6 by Troy - Intel 8080 codegen
+"""C6T - C version 6 by Troy - Intel 8080 Backend"""
+
+from __future__ import annotations
+from dataclasses import dataclass, field
+from enum import Enum, IntEnum, auto
+from typing import Any, Iterator, Mapping
+from pathlib import Path
+import json
+
+from backend import CodeGen, Command, Node as BackNode, backend as dobackend
+import c6t
+
+PathType = Path | str
+
+SEGMENTS = (
+    '.text', '.data', '.string', '.bss'
+)
 
 
---- THINKING IT THRU ON PAPER ---
-Codegens can be unary-HL, binary, unary-DE, unary-ANY, leaf-DE, leaf-HL, or
-leaf-ANY. So more accurately, unary/binary/leaf, with binary using DE and HL,
-leafs attaching HL/DE/ANY.
+def newsegs() -> dict[str, str]:
+    """Construct a new segs dictionary."""
+    segs = {}
+    for seg in SEGMENTS:
+        segs[seg] = ''
+    return segs
 
-Labels can be leaf, unary, binary, or special.
-Labels can be commutative or not.
 
-Left operands/results in HL, right operands in DE. Commutative doesn't matter.
+class Reg(IntEnum):
+    """Intel 8080 physical registers."""
+    HL = 0
+    DE = 1
 
-Calculate into HL. If binary, see if we can get right into DE w/o using HL.
-In other words, using only leaf/unary-DE/ANY. If not, push H and calculate.
 
-We could also calculate the left node first, swap it into DE, and then see if
-the right node is computable using only unary/leaf-HL/ANY nodes.
+class TRegs(Enum):
+    """Specifies which registers results and operand are from.
+    """
+    HL = auto()
+    DE_HL = auto()
+    DE_DE = auto()
+    ANY = auto()
+    BINARY = auto()
+    SPECIAL = auto()
 
-So, a given node can be matched to unary/leaf-HL/DE/Any -- you could see which
-register operations are available and list them all. Or it could be binary.
 
-A given node, RECURSIVELY DOWN THRU ITS CHILDREN, either contains ANY binary
-nodes, or unary/leaf-HL/DE/ANY's. If unary/leaf, and not all of its children
-support all registers, then we COULD calculate a maximal chain of the minimal
-xchg's needed, OR just say "ANY" and xchg away. Maybe mark it XCHG-requiring.
+@dataclass(frozen=True)
+class Node:
+    """An expression node."""
+    label: str
+    left: Node | None = None
+    right: Node | None = None
+    value: Any | None = field(default=None, hash=False, compare=False)
 
-So, if we want a node, and it's binary, then the order of the children depends
-on whether the node's label is commutative, and whether any children can be
-computed unary-style. One could count up the number of xchg's required on
-a unary to decide which order if it is so marked.
 
-BUT, it's fine to push HL and pop it into DE or HL later, we're going to do
-a bunch of that.
+@dataclass
+class CodeState:
+    """Codegen state."""
+    curtemp: int = 0
+    segs: dict[str, str] = field(default_factory=newsegs)
+    curseg: str = '.text'
 
-POSSIBLY, we could also list requirements -- for starts, the left or right
-child node labels. Then limit those being searched to things fitting those
-requirements. MAYBE also value comparisons, equals would be easiest.
+    def temp(self) -> str:
+        """Return the next temporary label."""
+        self.curtemp += 1
+        return f"LL{self.curtemp}"
 
-Anyway, so our expression assembler could work recursively downwards. We
-should keep track of if HL or DE are in-use. In case of a unary/leaf node,
-if we can place it into a not-in-use register do so, otherwise swap/save
-the register.
 
-It would be GREAT if I could keep track of where evaluated nodes have gotten
-stored, so I can swap 'em and just know where they were?
+@dataclass(frozen=True)
+class Require:
+    """Requirements for a code-gen template to match a node."""
+    label: str | None = None
+    value: Any | None = field(default=None, hash=False, compare=False)
 
-OK, so let's look again. If we started with a binary node, the cases are
-we could evaluate one into HL and one into DE (meaning both are
-Unary/Leaf-DE/HL/ANY), or else they interfere in some way. If both are
-recursively binaries, then the order doesn't matter - I guess we could save
-some pushes/pops along the way? Commutative we could do the one with the last
-of those first, push it, then the other one, then pop back into DE. Otherwise
-the order is required.
+    def __post_init__(self):
+        if self.label is not None and not isinstance(self.label, str):
+            raise TypeError('label', self.label)
 
-For unaries, we either don't interfere or we do. If we interfere we can either
-avoid pushing and do it all with xchg's or not. We ALWAYS can as long as
-neither side is binaries.
+    def match(self, node: Node | None) -> bool:
+        """Return a flag for if we match the node."""
+        if node is None:
+            return True
+        if not isinstance(node, Node):
+            raise TypeError
+        if self.label is None:
+            return True
+        if self.label != node.label:
+            return False
+        if self.value is None:
+            return True
+        return self.value == node.value
 
-So a binary with two binaries is push, a binary with two unaries or a unary
-with a unary is a xchg. So we can weight the cost.
 
-So we have a push/xchg/noninterfere cost, and a binary/unary/leaf cost.
+@dataclass(frozen=True)
+class Template:
+    """A code-gen template."""
+    require: Require
+    action: str
+    regs: TRegs = TRegs.BINARY
+    leftreq: Require = Require
+    rightreq: Require = Require
 
-We could also mark nodes as ORDER_REQUIRED as opposed to just commutative -
-non-commutative would reuqire the nodes to be in the proper order,
-possibly xchging them (add to cost?), while ORDER_REQUIRED means you HALF
-to do one side first then the other. Those might all end up special though?
-Yes they would. Carry on then.
+    def __post_init__(self):
+        for req in 'require', 'leftreq', 'rightreq':
+            reqlist = getattr(self, req)
+            if isinstance(reqlist, list):
+                # pylint:disable=not-an-iterable
+                object.__setattr__(self, req, Require(*reqlist))
+        if isinstance(self.action, list):
+            actstr = ''
+            for elem in self.action:
+                actstr += elem + '\n'
+            if actstr.endswith('\n'):
+                actstr = actstr[:-1]
+            object.__setattr__(self, 'action', actstr)
+        if not isinstance(self.regs, TRegs):
+            object.__setattr__(self, 'regs', TRegs(self.regs))
+        if self.require.label is None:
+            raise ValueError('main Require for a Template (template.require) '
+                             'cannot be None')
 
-Special is things like &&/||/call/brz/etc. We need to handle them carefully
-anyhow.
+    def match(self, node: Node) -> bool:
+        """Try to match this template against a given node."""
+        return all((require.match(node) for require in
+                    (self.require, self.leftreq, self.rightreq)))
 
-In terms of for_cc or not, we really only have "we just did a subtraction,
-do we need to logical (convert to 1 or 0) or not". We might manually put in
-branch and logical/lognot nodes and then grab out chains. Chains of logical/
-lognots should return the other, and a branch on a logical/lognot can just
-be what it was logicalling. But logical/lognot's MUST have their sub node be
-a subtraction. This subtraction maybe could be special cased so that we can't
-do a lot of subtraction optimzations (converting to additions where possible).
+    def expand(self, state: CodeState, node: Node, reg: Reg = Reg.HL) -> str:
+        """Return an expanded version of the node."""
+        temp1 = None
 
-This would be good for if we could have requirements of immediate child node
-labels/values, 'cause then we could have a brz on a sub evaluate to no test,
-while brz on anything else throws a test in.
+        action = self.action
+        if 'T1' in action:
+            temp1 = state.temp()
 
-We'll only assume CC codes are set on the special subtraction? Maybe call it
-'compare' even though its implemented w/ a phsyical subtract.
+        action.replace('LV', node.left.value)
+        action.replace('RV', node.right.value)
+        action.removeprefix('V', node.value)
+        action.replace('R', Reg(reg).name[0].lower())
 
-Special nodes might require assuming both sides are using both registers, or
-else on a maximum worst case of all its elements. So like a CALL, we need
-to evaluate all arguments, push them onto the stack one by one, and evaluate
-the function itself. And the worst case we have is a binary with a set count
-of xchg/pushes.
+        out = ''
+        for line in action.splitlines():
+            line = f'\t{line}\n'
+            if 'DT1' in line:
+                out += f'{temp1}:\n'
+            else:
+                out += line
+        return out
 
-It's IMPORTANT that all things we push on get popped off by the end of
-evaluating a given node. Treating binaries individually is a good example
-of that.
-"""
+
+class Scheme(Mapping[str, tuple[Template, ...]]):
+    """A collection of codegen templates."""
+
+    def __init__(self, *templates: Template):
+        self._templs: dict[str, list[Template]] = {}
+        for template in templates:
+            self.add(template)
+
+    def add(self, template: Template) -> None:
+        """Add the template to this scheme."""
+        if not isinstance(template, Template):
+            raise TypeError
+        label = template.require.label
+        assert label is not None
+        if label not in self._templs:
+            self._templs[label] = []
+        tlist = self._templs[label]
+        if template in tlist:
+            raise ValueError('template already in scheme')
+        tlist.append(template)
+
+    def __getitem__(self, key: str) -> tuple[Template, ...]:
+        return tuple(self._templs[key])
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._templs)
+
+    def __len__(self) -> int:
+        return len(self._templs)
+
+    @staticmethod
+    def from_json(source: str) -> Scheme:
+        """Generate a Scheme from a json spec."""
+        templs = json.loads(source)
+        scheme = Scheme()
+        if not isinstance(templs, list):
+            raise TypeError
+        for templ in templs:
+            if not isinstance(templ, dict):
+                raise TypeError
+            scheme.add(Template(**templ))
+
+
+class Code80(CodeGen):
+    """Code generator for Intel 8080."""
+
+    def __init__(self, templates: PathType = 'c8080.json') -> None:
+        super().__init__()
+        self.state: CodeState = CodeState()
+        path = Path(templates)
+        scheme = path.read_text('utf8')
+        self.scheme: Scheme = Scheme.from_json(scheme)
+
+    def reset(self) -> None:
+        self.state = CodeState()
+
+    def getasm(self) -> str:
+        out = ''
+        for seg in SEGMENTS:
+            out += self.state.segs[seg]
+        return out
+
+    def asm(self, code: str) -> None:
+        """Add the assembly to the current segment."""
+        assert self.state.curseg in SEGMENTS
+        self.state.segs[self.state.curseg] += code
+
+    def asmlines(self, *lines: str) -> None:
+        """Assemble to output the lines with leading tabs."""
+        for line in lines:
+            self.asm(f'\t{line}\n')
+
+    def deflabel(self, lab: str) -> None:
+        self.asm(f'{lab}:\n')
+
+    def command(self, command: Command, nodestk: list[BackNode]) -> None:
+        if command.cmd in self.scheme:
+            if command.args:
+                arg = command.args[0]
+            else:
+                arg = None
+            fakenode = Node(command.cmd, value=arg)
+            out = self.scheme[command.cmd][0].expand(self.state, fakenode)
+            self.asm(out)
+        match command.cmd:
+            case _:
+                raise ValueError(command)
+
+
+def test(source: PathType):
+    """Run a test program."""
+    path = Path(source)
+    irsrc = c6t.compile_c6t(path.read_text('utf8'))
+    path.with_suffix('.ir').write_text(irsrc, 'utf8')
+    codegen = Code80()
+    asm = dobackend(irsrc, codegen)
+    path.with_suffix('.s').write_text(asm, 'ascii')
+
+
+if __name__ == "__main__":
+    test('hello.c')

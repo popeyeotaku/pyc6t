@@ -36,7 +36,7 @@ def main(name:pathlib.Path|str):
 def test():
     """Compile some test programs.
     """
-    main('hello.c')
+    main('test.c')
 
 if __name__ == "__main__":
     test()

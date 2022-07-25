@@ -59,28 +59,31 @@ def statement(parser: Parser, retflt: bool):
             parser.brkstk.pop()
             parser.contstk.pop()
         case 'for':
-            parser.contstk.append(parser.nextstatic())
+            lab1 = parser.nextstatic()
             parser.brkstk.append(parser.nextstatic())
+            parser.contstk.append(parser.nextstatic())
 
             parser.need('(')
             if not parser.match(';'):
                 asmexpr(parser, expression(parser), 'eval')
                 parser.need(';')
-            deflab(parser, parser.contstk[-1])
+            deflab(parser, lab1)
             if not parser.match(';'):
                 asmexpr(parser, expression(parser))
                 asm(parser, f'brz {parser.brkstk[-1]}')
                 parser.need(';')
             if parser.match(')'):
                 update = None
+                parser.contstk[-1] = lab1
             else:
                 update = expression(parser)
                 parser.need(')')
 
             statement(parser, retflt)
             if update:
+                deflab(parser, parser.contstk[-1])
                 asmexpr(parser, update, 'eval')
-            asm(parser, f'jmp {parser.contstk[-1]}')
+            asm(parser, f'jmp {lab1}')
             deflab(parser, parser.brkstk[-1])
 
             parser.contstk.pop()

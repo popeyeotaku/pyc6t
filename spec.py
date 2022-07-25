@@ -217,7 +217,6 @@ def funcdef(parser: Parser, name: str, typestr: TypeString,
     goseg(parser, 'text')
     deflab(parser, '_' + name)
     pseudo(parser, f'export _{name}')
-    pseudo(parser, f'func _{name}')
 
     functype = typestr
 
@@ -317,6 +316,8 @@ def funcdef(parser: Parser, name: str, typestr: TypeString,
         asm(parser, f'lenautos {util.word(-auto_offset)}')
 
     asm(parser, f'useregs {regs}')
+    
+    pseudo(parser, f'func _{name}')
 
     while not parser.match('}'):
         parser.eoferror()

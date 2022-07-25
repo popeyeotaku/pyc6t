@@ -1,0 +1,187 @@
+[{
+        "require": ["func"],
+        "regs": "SPECIAL",
+        "action": [
+            "push b",
+            "lhld reg0",
+            "push h",
+            "lhld reg1",
+            "push h",
+            "lhld reg2",
+            "push h",
+            "lxi h,0",
+            "dad sp",
+            "mov b,h",
+            "mov c,l"
+        ]
+    },
+    {
+        "require": ["lenautos"],
+        "regs": "SPECIAL",
+        "action": [
+            "lxi h,-V",
+            "dad sp",
+            "sphl"
+        ]
+    },
+    {
+        "require": ["extern"],
+        "regs": "ANY",
+        "action": "lxi R,V"
+    },
+    {
+        "require": ["call", 0],
+        "regs": "SPECIAL",
+        "leftreq": ["extern"],
+        "action": "call LV"
+    },
+    {
+        "require": ["call"],
+        "regs": "SPECIAL",
+        "leftreq": ["extern"],
+        "action": [
+            "call LV",
+            "xchg",
+            "lxi h,V*2",
+            "dad sp",
+            "sphl",
+            "xchg"
+        ]
+    },
+    {
+        "require": ["call", 0],
+        "regs": "SPECIAL",
+        "action": [
+            "call ccall"
+        ]
+    },
+    {
+        "require": ["call"],
+        "regs": "SPECIAL",
+        "action": [
+            "call ccall",
+            "xchg",
+            "lxi h,V*2",
+            "dad sp",
+            "sphl",
+            "xchg"
+        ]
+    },
+    {
+        "require": ["load"],
+        "regs": "HL",
+        "leftreq": ["extern"],
+        "action": "lhld LV"
+    },
+    {
+        "require": ["load"],
+        "regs": "HL",
+        "action": [
+            "mov a,m",
+            "inx h",
+            "mov h,m",
+            "mov l,a"
+        ]
+    },
+    {
+        "require": ["cload"],
+        "leftreq": ["extern"],
+        "regs": "HL",
+        "action": [
+            "lda LV",
+            "mov a,l",
+            "call cextend"
+        ]
+    },
+    {
+        "require": ["cload"],
+        "regs": "HL",
+        "action": [
+            "mov l,m",
+            "call cextend"
+        ]
+    },
+    {
+        "require": ["store"],
+        "regs": "HL",
+        "rightreq": ["extern"],
+        "action": [
+            "shld LV"
+        ]
+    },
+    {
+        "require": ["store"],
+        "action": [
+            "mov m,e",
+            "inx h",
+            "mov m,d",
+            "xchg"
+        ]
+    },
+    {
+        "require": ["brz"],
+        "regs": "HL",
+        "action": [
+            "mov a,h",
+            "ora l",
+            "je V"
+        ]
+    },
+    {
+        "require": ["arg"],
+        "regs": "ANY",
+        "action": [
+            "push R"
+        ]
+    },
+    {
+        "require": ["con"],
+        "regs": "ANY",
+        "action": [
+            "lxi R,V"
+        ]
+    },
+    {
+        "require": ["add"],
+        "leftreq": ["con", 1],
+        "regs": "ANY",
+        "action": [
+            "inx R"
+        ]
+    },
+    {
+        "require": ["add"],
+        "rightreq": ["con", 1],
+        "regs": "ANY",
+        "action": [
+            "inx R"
+        ]
+    },
+    {
+        "require": ["add"],
+        "action": "dad d"
+    },
+    {
+        "require": ["and"],
+        "action": [
+            "mov a,l",
+            "ana e",
+            "mov l,a",
+            "mov a,h",
+            "ana d",
+            "mov h,a"
+        ]
+    },
+    {
+        "require": ["lognot"],
+        "regs": "HL",
+        "action": [
+            "mov a,l",
+            "ora h",
+            "lxi h,0",
+            "jne T1",
+            "inx h",
+            "DT1"
+        ]
+    }
+]
