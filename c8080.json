@@ -2,17 +2,7 @@
         "require": [".func"],
         "regs": "SPECIAL",
         "action": [
-            "push b",
-            "lhld reg0",
-            "push h",
-            "lhld reg1",
-            "push h",
-            "lhld reg2",
-            "push h",
-            "lxi h,0",
-            "dad sp",
-            "mov b,h",
-            "mov c,l"
+            "call csave"
         ]
     },
     {

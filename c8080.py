@@ -28,6 +28,22 @@ _exit:
     hlt
     jmp _exit
 
+csave:
+    pop d
+    push b
+    lhld reg0
+    push h
+    lhld reg1
+    push h
+    lhld reg2
+    push h
+    lxi h,0
+    dad sp
+    mov c,l
+    mov b,h
+    xchg
+    pchl
+
 cret:
     mov l,c
     mov h,b
@@ -40,6 +56,10 @@ cret:
     shld reg0
     pop b
     ret
+
+ccall:
+    pop d
+    pchl
 
 reg0: .word 0
 reg1: .word 0
@@ -197,7 +217,7 @@ class Template:
     leftreq: Require = field(default_factory=Require)
     rightreq: Require = field(default_factory=Require)
     commutative: bool = False
-    flags:tuple[str] = ()
+    flags: tuple[str] = ()
 
     def __post_init__(self):
         if not isinstance(self.flags, tuple):
