@@ -336,6 +336,15 @@
     },
     {
         "require": ["sub"],
+        "rightreq": ["con", 1],
+        "regs": "ANY",
+        "commutative": true,
+        "action": [
+            "dcx R"
+        ]
+    },
+    {
+        "require": ["sub"],
         "rightreq": ["con"],
         "regs": "HL",
         "commutative": true,
@@ -393,7 +402,7 @@
         "require": [".ds"],
         "regs": "SPECIAL",
         "action": [
-            ".storage V"
+            ".storage V,0"
         ]
     },
     {
@@ -429,7 +438,7 @@
     {
         "require": ["cstore"],
         "action": [
-            "mov e,m"
+            "mov m,e"
         ]
     },
     {

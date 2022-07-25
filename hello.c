@@ -31,7 +31,7 @@ puts(string)
 
 initsio()
 {
-    out80(SIOPORT, SIOCLK<<5+SIOPAR<<2+SIOCLK);
+    out80(SIOPORT, SIOCLK<<5|SIOPAR<<2|SIOCLK);
 }
 
 putchar(c)

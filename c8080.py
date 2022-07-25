@@ -15,7 +15,7 @@ ASM_HEADER = """
     .format "bin"
     .setting "CaseSensitiveMode",true
     .setting "Debug",true
-    .setting "DebugFile","hello.sym"
+    .setting "DebugFile","8080.sym"
     
     
     .org 0
@@ -424,6 +424,10 @@ class Code80(CodeGen):
                 args = Node.join('comma', *args)
                 children = [func, args, None, None]
             case 'logand' | 'logor':
+                if children[0].label == 'log':
+                    children[0] = children[0].left
+                if children[1].label == 'log':
+                    children[1] = children[1].left
                 children[0] = Node(label, children[0], children[1], value)
                 children[1] = None
                 label = 'log'
@@ -579,7 +583,7 @@ class Code80(CodeGen):
                 oldseg = self.state.curseg
                 self.state.curseg = '.bss'
                 self.deflabel(command.args[0])
-                self.asmlines(f'.storage {command.args[1]}')
+                self.asmlines(f'.storage {command.args[1]},0')
                 self.state.curseg = oldseg
             case _:
                 if command.cmd in self.scheme:

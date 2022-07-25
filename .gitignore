@@ -6,12 +6,9 @@ ed.c
 ed.ir
 *.ir
 glob.c
-wrap.s
-hello.s
 debugcode.txt
-hello.sym
-hello.bin
 lint.bat
 run.bat
-simh.ini
-wrap.bin
+*.bin
+*.sym
+*.s
