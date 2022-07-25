@@ -396,14 +396,18 @@ class Code80(CodeGen):
             return node
 
         assert isinstance(node, BackNode)
-        children = [self.convert(child) for child in node.children] + [None,
-                                                                       None]
+        children: list[Node | None] = [
+            self.convert(child) for child in node.children] + [None, None]
         label = node.label
         value = node.value
         match node.label:
+            case 'postinc' | 'preinc' | 'predec' | 'postdec':
+                assert isinstance(children[1], Node)
+                value = children[1].value
+                children[1] = None
             case 'register':
                 label = 'extern'
-                value = f'reg{node.value}'
+                value = f'reg{value}'
             case 'call':
                 children = children[:-2]  # Remove Nones
                 func, args = children[-1], children[:-1]
@@ -463,7 +467,8 @@ class Code80(CodeGen):
                     case 'call':
                         self.evalnode(right, Reg.HL)
                         self.evalnode(left, Reg.HL)
-                    case 'comma' | 'brz':
+                    case 'comma' | 'brz' | 'preinc' | 'predec' | 'postinc' | \
+                            'postdec':
                         if 'leftleft' in match.flags:
                             self.evalnode(node.left.left, Reg.HL)
                         self.evalnode(left, Reg.HL)
@@ -508,10 +513,13 @@ class Code80(CodeGen):
         if left:
             child = self.unarily(left, reg)
             if child == reg:
-                return reg
-            if child == Reg.HL:
-                return self.unarily(node, Reg.HL)
-            return None
+                out = reg
+            elif child == Reg.HL:
+                assert reg != Reg.HL
+                out = self.unarily(node, Reg.HL)
+            else:
+                out = None
+            return out
         return reg
 
     def subreq(self, node: Node, match: Template) -> tuple[Node | None,

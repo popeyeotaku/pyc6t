@@ -254,19 +254,19 @@ def funcdef(parser: Parser, name: str, typestr: TypeString,
     while specline(parser, True, paramcallback):
         pass
     offset = util.PARAM_OFFSET
-    for paramname, typestr in paramtypes.items():
+    for paramname, ptype in paramtypes.items():
         if paramname in parser.symtab:
             parser.error(f'name {paramname} already defined')
             continue
         symbol = Symbol(
             paramname,
             'auto',
-            typestr.copy(),
+            ptype.copy(),
             offset,
             local=True
         )
         parser.symtab[paramname] = symbol
-        offset = util.word(offset + tysize(typestr))
+        offset = util.word(offset + tysize(ptype))
 
     parser.need('{')
 
@@ -316,7 +316,7 @@ def funcdef(parser: Parser, name: str, typestr: TypeString,
         asm(parser, f'lenautos {util.word(-auto_offset)}')
 
     asm(parser, f'useregs {regs}')
-    
+
     pseudo(parser, f'func _{name}')
 
     while not parser.match('}'):

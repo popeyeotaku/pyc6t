@@ -204,5 +204,81 @@
         "require": ["jmp"],
         "action": "jmp V",
         "regs": "SPECIAL"
+    },
+    {
+        "require": ["preinc"],
+        "regs": "SPECIAL",
+        "leftreq": ["extern"],
+        "action": [
+            "lhld LV",
+            "lxi d,V",
+            "dad d",
+            "shld LV"
+        ]
+    },
+    {
+        "require": ["preinc"],
+        "regs": "SPECIAL",
+        "action": [
+            "mov a,m",
+            "inx h",
+            "mov d,m",
+            "adi >v",
+            "mov e,a",
+            "mvi a,<v",
+            "adc d",
+            "mov m,a",
+            "dcx h",
+            "mov m,e",
+            "xchg"
+        ]
+    },
+    {
+        "require": ["predec"],
+        "regs": "SPECIAL",
+        "leftreq": ["extern"],
+        "action": [
+            "lhld LV",
+            "lxi d,-V",
+            "dad d",
+            "shld LV"
+        ]
+    },
+    {
+        "require": ["postinc"],
+        "regs": "SPECIAL",
+        "leftreq": ["extern"],
+        "action": [
+            "lhld LV",
+            "mov e,l",
+            "mov d,h",
+            "mvi a,<V",
+            "add l",
+            "mov l,a",
+            "mvi a,>V",
+            "adc h",
+            "mov h,a",
+            "shld LV",
+            "xchg"
+        ]
+    },
+    {
+        "require": ["postinc"],
+        "regs": "SPECIAL",
+        "action": [
+            "mov e,m",
+            "inx h",
+            "mov d,m",
+            "push d",
+            "mvi a,<V",
+            "add e",
+            "mov e,a",
+            "mvi a,>V",
+            "adc d",
+            "mov m,a",
+            "dcx h",
+            "mov m,e",
+            "pop h"
+        ]
     }
 ]

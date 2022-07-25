@@ -274,7 +274,7 @@ def build(parser: Parser, linenum: int, label: str | None,
         case 'postinc' | 'preinc' | 'postdec' | 'predec':
             del node.children[1:]
             if pointer(*node.children):
-                size = tysize(node.children[0].typestr)
+                size = tysize(node.children[0].typestr[1:])
             else:
                 size = 1
             node.children.append(Leaf(

@@ -13,10 +13,8 @@ puts(string)
     register c;
     register char *s;
 
-    if (s = string) while (c = *s) {
+    if (s = string) while (c = *s++)
         putchar(c);
-        s = s + 1;
-    }
 }
 
 /* 2SIO support */
