@@ -47,5 +47,5 @@ getchar()
 {
     while(in80(SIOPORT)&SIOREC)
         ;
-    return (in80(SIOPORT) & 0177);
+    return (0177 & in80(SIOPORT));
 }

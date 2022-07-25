@@ -36,6 +36,7 @@ NODECHILDREN: dict[str, int] = {
     'cload': 1,
     'nequ': 2,
     'less': 2,
+    'and': 2
 }
 
 

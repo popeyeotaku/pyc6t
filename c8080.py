@@ -127,8 +127,11 @@ class Template:
     leftreq: Require = field(default_factory=Require)
     rightreq: Require = field(default_factory=Require)
     commutative: bool = False
+    flags:tuple[str] = ()
 
     def __post_init__(self):
+        if not isinstance(self.flags, tuple):
+            object.__setattr__(self, 'flags', tuple(self.flags))
         for req in 'require', 'leftreq', 'rightreq':
             reqlist = getattr(self, req)
             if isinstance(reqlist, list):
@@ -157,7 +160,7 @@ class Template:
         temp1 = None
 
         action = self.action
-        if 'T1' in action:
+        if 'T1' in action or 'D1' in action:
             temp1 = state.temp()
 
         action = action.replace('T1', str(temp1))
@@ -172,7 +175,7 @@ class Template:
         out = ''
         for line in action.splitlines():
             line = f'\t{line}\n'
-            if 'DT1' in line:
+            if 'D1' in line:
                 out += f'{temp1}:\n'
             else:
                 out += line
@@ -346,11 +349,16 @@ class Code80(CodeGen):
                 self.evalnode(right, reg)
             case TRegs.BINARY:
                 assert reg == Reg.HL
+                assert left and right
                 uleft = self.unarily(node.left, Reg.HL)
                 uright = self.unarily(node.right, Reg.DE)
                 if uright == Reg.DE:
                     self.evalnode(node.left, Reg.HL)
                     self.evalnode(node.right, Reg.DE)
+                elif match.commutative and self.unarily(node.left,
+                                                        Reg.DE) == Reg.DE:
+                    self.evalnode(node.right, Reg.HL)
+                    self.evalnode(node.left, Reg.DE)
                 elif uright == Reg.HL and uleft is not None:
                     self.evalnode(node.right, Reg.HL)
                     self.asm('xchg')
@@ -366,6 +374,8 @@ class Code80(CodeGen):
                         self.evalnode(right, Reg.HL)
                         self.evalnode(left, Reg.HL)
                     case 'comma' | 'brz':
+                        if 'leftleft' in match.flags:
+                            self.evalnode(node.left.left, Reg.HL)
                         self.evalnode(left, Reg.HL)
                         self.evalnode(right, Reg.HL)
                     case _:

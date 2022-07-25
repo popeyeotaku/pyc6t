@@ -121,6 +121,17 @@
     {
         "require": ["brz"],
         "regs": "SPECIAL",
+        "leftreq": ["lognot"],
+        "action": [
+            "mov a,l",
+            "ora h",
+            "jne V"
+        ],
+        "flags": ["leftleft"]
+    },
+    {
+        "require": ["brz"],
+        "regs": "SPECIAL",
         "action": [
             "mov a,h",
             "ora l",
@@ -183,7 +194,7 @@
             "lxi h,0",
             "jne T1",
             "inx h",
-            "DT1"
+            "D1"
         ]
     },
     {
