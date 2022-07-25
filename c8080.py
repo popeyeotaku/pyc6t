@@ -400,7 +400,17 @@ class Code80(CodeGen):
             self.convert(child) for child in node.children] + [None, None]
         label = node.label
         value = node.value
-        match node.label:
+        match label:
+            case 'great' | 'less' | 'ugreat' | 'uless' | 'nequ' | 'equ' \
+                    | 'gequ' | 'lequ' | 'ugequ' | 'ulequ':
+                children[0] = Node(
+                    'cmp', children[0], children[1]
+                )
+                children[1] = None
+                if label == 'nequ':
+                    label = 'log'
+                elif label == 'equ':
+                    label = 'lognot'
             case 'postinc' | 'preinc' | 'predec' | 'postdec':
                 assert isinstance(children[1], Node)
                 value = children[1].value
@@ -413,7 +423,10 @@ class Code80(CodeGen):
                 func, args = children[-1], children[:-1]
                 args = Node.join('comma', *args)
                 children = [func, args, None, None]
-
+            case 'logand' | 'logor':
+                children[0] = Node(label, children[0], children[1], value)
+                children[1] = None
+                label = 'log'
         return Node(label, children[0], children[1], value)
 
     def eval(self, node: Node) -> None:
@@ -455,26 +468,35 @@ class Code80(CodeGen):
                     self.evalnode(node.left, Reg.DE)
                 elif uright == Reg.HL and uleft is not None:
                     self.evalnode(node.right, Reg.HL)
-                    self.asm('xchg')
+                    self.asmlines('xchg')
                     self.evalnode(node.left, Reg.HL)
                 else:
                     self.evalnode(node.right, Reg.HL)
-                    self.asm('push h')
+                    self.asmlines('push h')
                     self.evalnode(node.left, Reg.HL)
-                    self.asm('pop d')
+                    self.asmlines('pop d')
             case TRegs.SPECIAL:
                 match node.label:
+                    case 'logor':
+                        lab = self.state.temp()
+                        self.evalnode(left, Reg.HL)
+                        self.asmlines('mov a,l', 'ora h', f'jnz {lab}')
+                        self.evalnode(right, Reg.HL)
+                        self.deflabel(lab)
+                    case 'logand':
+                        lab = self.state.temp()
+                        self.evalnode(left, Reg.HL)
+                        self.asmlines('mov a,l', 'ora h', f'jz {lab}')
+                        self.evalnode(right, Reg.HL)
+                        self.deflabel(lab)
                     case 'call':
                         self.evalnode(right, Reg.HL)
                         self.evalnode(left, Reg.HL)
-                    case 'comma' | 'brz' | 'preinc' | 'predec' | 'postinc' | \
-                            'postdec':
+                    case _:
                         if 'leftleft' in match.flags:
                             self.evalnode(node.left.left, Reg.HL)
                         self.evalnode(left, Reg.HL)
                         self.evalnode(right, Reg.HL)
-                    case _:
-                        raise ValueError(node.label)
             case _:
                 raise ValueError(match.regs)
         self.expand(match, node, reg)
@@ -553,6 +575,12 @@ class Code80(CodeGen):
             case 'ret':
                 self.eval(self.convert(nodestk.pop()))
                 self.asmlines('jmp cret')
+            case '.common':
+                oldseg = self.state.curseg
+                self.state.curseg = '.bss'
+                self.deflabel(command.args[0])
+                self.asmlines(f'.storage {command.args[1]}')
+                self.state.curseg = oldseg
             case _:
                 if command.cmd in self.scheme:
                     if command.args:
@@ -579,4 +607,4 @@ def test(source: PathType):
 
 
 if __name__ == "__main__":
-    test('hello.c')
+    test('wrap.c')

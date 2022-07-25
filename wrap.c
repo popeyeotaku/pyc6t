@@ -93,28 +93,36 @@ digit(c)
 #define SIO 020
 #define SIODAT 021
 #define SIOXMIT 02
+#define SIOREC 01
 
 #define SIOSHAKE 0
 #define SIODATA 7
 #define SIOCLK 0
 
-int siostart;
-
 putchar(c)
 {
-        if (!siostart) initsio();
         while (!(in80(SIO)&SIOXMIT))
                 ;
         out80(SIODAT, c);
 }
 
+getchar()
+{
+    while(in80(SIO)&SIOREC)
+        ;
+    return (0177 & in80(SIODAT));
+}
+
 sioinit()
 {
         out80(SIO, SIOSHAKE<<5|SIODATA<<2|SIOCLK);
-        siostart = 1;
 }
 
 main()
 {
+        sioinit();
         wrap(WIDTH);
 }
+
+flush()
+{}

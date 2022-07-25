@@ -12,3 +12,6 @@ debugcode.txt
 hello.sym
 hello.bin
 lint.bat
+run.bat
+simh.ini
+wrap.bin

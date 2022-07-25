@@ -26,6 +26,36 @@
         "action": "call LV"
     },
     {
+        "require": ["call", 1],
+        "regs": "SPECIAL",
+        "leftreq": ["extern"],
+        "action": [
+            "call LV",
+            "pop d"
+        ]
+    },
+    {
+        "require": ["call", 2],
+        "regs": "SPECIAL",
+        "leftreq": ["extern"],
+        "action": [
+            "call LV",
+            "pop d",
+            "pop d"
+        ]
+    },
+    {
+        "require": ["call", 3],
+        "regs": "SPECIAL",
+        "leftreq": ["extern"],
+        "action": [
+            "call LV",
+            "pop d",
+            "pop d",
+            "pop d"
+        ]
+    },
+    {
         "require": ["call"],
         "regs": "SPECIAL",
         "leftreq": ["extern"],
@@ -107,6 +137,17 @@
             "mov m,d",
             "xchg"
         ]
+    },
+    {
+        "require": ["brz"],
+        "regs": "SPECIAL",
+        "leftreq": ["log"],
+        "action": [
+            "mov a,l",
+            "ora h",
+            "jz V"
+        ],
+        "flags": ["leftleft"]
     },
     {
         "require": ["brz"],
@@ -206,6 +247,16 @@
         "regs": "SPECIAL"
     },
     {
+        "require": ["preinc", 1],
+        "regs": "SPECIAL",
+        "leftreq": ["extern"],
+        "action": [
+            "lhld LV",
+            "inx h",
+            "shld LV"
+        ]
+    },
+    {
         "require": ["preinc"],
         "regs": "SPECIAL",
         "leftreq": ["extern"],
@@ -234,14 +285,16 @@
         ]
     },
     {
-        "require": ["predec"],
+        "require": ["postinc", 1],
         "regs": "SPECIAL",
         "leftreq": ["extern"],
         "action": [
             "lhld LV",
-            "lxi d,-V",
-            "dad d",
-            "shld LV"
+            "mov e,l",
+            "mov d,h",
+            "inx h",
+            "shld LV",
+            "xchg"
         ]
     },
     {
@@ -279,6 +332,137 @@
             "dcx h",
             "mov m,e",
             "pop h"
+        ]
+    },
+    {
+        "require": ["sub"],
+        "rightreq": ["con"],
+        "regs": "HL",
+        "commutative": true,
+        "action": [
+            "lxi d,-V",
+            "dad d"
+        ]
+    },
+    {
+        "require": ["sub"],
+        "action": [
+            "mov a,l",
+            "sub e",
+            "mov l,a",
+            "mov a,h",
+            "sbb d",
+            "mov h,a"
+        ]
+    },
+    {
+        "require": ["cmp"],
+        "action": [
+            "mov a,l",
+            "sub e",
+            "mov l,a",
+            "mov a,h",
+            "sbb d",
+            "mov h,a"
+        ]
+    },
+    {
+        "require": ["log"],
+        "regs": "ANY",
+        "action": [
+            "mov a,RLOW",
+            "ora R",
+            "lxi R,0",
+            "jz T1",
+            "inx R",
+            "D1"
+        ]
+    },
+    {
+        "require": ["great"],
+        "regs": "ANY",
+        "action": [
+            "lxi R,0",
+            "jz T1",
+            "jc T1",
+            "inx R",
+            "D1"
+        ]
+    },
+    {
+        "require": [".ds"],
+        "regs": "SPECIAL",
+        "action": [
+            ".storage V"
+        ]
+    },
+    {
+        "require": ["logand"],
+        "regs": "SPECIAL",
+        "action": ""
+    },
+    {
+        "require": ["logor"],
+        "regs": "SPECIAL",
+        "action": ""
+    },
+    {
+        "require": ["uless"],
+        "regs": "ANY",
+        "action": [
+            "lxi R,0",
+            "jz T1",
+            "jc T1",
+            "inx R",
+            "D1"
+        ]
+    },
+    {
+        "require": ["cstore"],
+        "leftreq": ["extern"],
+        "regs": "ANY",
+        "action": [
+            "mov a,RLOW",
+            "sta V"
+        ]
+    },
+    {
+        "require": ["cstore"],
+        "action": [
+            "mov e,m"
+        ]
+    },
+    {
+        "require": ["gequ"],
+        "regs": "ANY",
+        "action": [
+            "lxi R,0",
+            "jnz T1",
+            "jc T1",
+            "inx R",
+            "D1"
+        ]
+    },
+    {
+        "require": ["less"],
+        "regs": "ANY",
+        "action": [
+            "lxi R,0",
+            "jz T1",
+            "jnc T1",
+            "inx R",
+            "D1"
+        ]
+    },
+    {
+        "require": ["lequ"],
+        "regs": "ANY",
+        "action": [
+            "lxi R,0",
+            "jnz T1",
+            "jnc T1",
+            "inx R",
+            "D1"
         ]
     }
 ]
