@@ -119,7 +119,7 @@ def statement(parser: Parser, retflt: bool):
                 label = parser.nextstatic()
                 if con in parser.casestk[-1]:
                     parser.error(f'redefined case {con}')
-                parser.casestk[-1][con] = parser.nextstatic()
+                parser.casestk[-1][con] = label
                 deflab(parser, label)
             statement(parser, retflt)
         case 'default':

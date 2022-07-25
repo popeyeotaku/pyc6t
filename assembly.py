@@ -39,7 +39,7 @@ def fasm(parser, line: str, flag: bool) -> None:
     asm(parser, line)
 
 
-def asmexpr(parser: Parser, node: Node, command:str|None=None) -> None:
+def asmexpr(parser: Parser, node: Node, command: str | None = None) -> None:
     """Assemble an expression tree."""
     asmnode(parser, node)
     rval(parser, node)
@@ -106,18 +106,23 @@ def asmchildren(parser: Parser, node: Node) -> None:
 def asmnode(parser: Parser, node: Node) -> None:
     """Assemble expression nodes recursively."""
     match node.label:
-        case 'assign':
-            # TODO: assign ops (=+, etc)
+        case 'assign' | 'asnadd' | 'asnsub' | 'asnmult' | 'asndiv' | 'asnmod' \
+                | 'asnrshift' | 'asnlshift' | 'asnand' | 'asneor' | 'asnor':
             assert len(node.children) == 2
+            if node.label == 'assign':
+                label = 'store'
+            else:
+                label = node.label
             match node.children[0].typestr[0].type:
                 case 'float':
-                    label = 'fstore'
+                    prefix='f'
                 case 'double':
-                    label = 'dstore'
+                    prefix='d'
                 case 'char':
-                    label = 'cstore'
+                    prefix='c'
                 case _:
-                    label = 'store'
+                    prefix = ''
+            label = f"{prefix}{label}"
             asmchildren(parser, node)
             asm(parser, label)
         case 'dot' | 'arrow':
@@ -137,7 +142,7 @@ def asmnode(parser: Parser, node: Node) -> None:
             asmchildren(parser, node)
         case 'addr':
             assert len(node.children) == 1
-            asmnode(parser, node.children[0]) # No rval
+            asmnode(parser, node.children[0])  # No rval
         case 'call':
             assert len(node.children) >= 1
             for child in reversed(node.children[1:]):

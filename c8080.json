@@ -9,7 +9,7 @@
         "require": ["lenautos"],
         "regs": "SPECIAL",
         "action": [
-            "lxi h,-V",
+            "lxi h,~V+1",
             "dad sp",
             "sphl"
         ]
@@ -274,14 +274,52 @@
             "mov a,m",
             "inx h",
             "mov d,m",
-            "adi >v",
+            "adi >V",
             "mov e,a",
-            "mvi a,<v",
+            "mvi a,<V",
             "adc d",
             "mov m,a",
             "dcx h",
             "mov m,e",
             "xchg"
+        ]
+    },
+    {
+        "require": ["predec"],
+        "regs": "SPECIAL",
+        "action": [
+            "mov e,m",
+            "inx h",
+            "mov d,m",
+            "mov a,e",
+            "sui <V",
+            "mov e,a",
+            "mov a,d",
+            "sbi >V",
+            "mov d,a",
+            "mov m,d",
+            "dcx h",
+            "mov m,e",
+            "xchg"
+        ]
+    },
+    {
+        "require": ["postdec"],
+        "regs": "SPECIAL",
+        "action": [
+            "mov e,m",
+            "inx h",
+            "mov d,m",
+            "push d",
+            "mov a,e",
+            "sui <V",
+            "mov e,a",
+            "mov a,d",
+            "sbi >V",
+            "mov m,a",
+            "dcx h",
+            "mov m,e",
+            "pop h"
         ]
     },
     {
@@ -347,9 +385,8 @@
         "require": ["sub"],
         "rightreq": ["con"],
         "regs": "HL",
-        "commutative": true,
         "action": [
-            "lxi d,-V",
+            "lxi d,~RV+1",
             "dad d"
         ]
     },
@@ -399,6 +436,17 @@
         ]
     },
     {
+        "require": ["ugreat"],
+        "regs": "ANY",
+        "action": [
+            "lxi R,0",
+            "jz T1",
+            "jnc T1",
+            "inx R",
+            "D1"
+        ]
+    },
+    {
         "require": [".ds"],
         "regs": "SPECIAL",
         "action": [
@@ -432,13 +480,24 @@
         "regs": "ANY",
         "action": [
             "mov a,RLOW",
-            "sta V"
+            "sta LV"
         ]
     },
     {
         "require": ["cstore"],
         "action": [
             "mov m,e"
+        ]
+    },
+    {
+        "require": ["ugequ"],
+        "regs": "ANY",
+        "action": [
+            "lxi R,0",
+            "jnz T1",
+            "jnc T1",
+            "inx R",
+            "D1"
         ]
     },
     {
@@ -472,6 +531,100 @@
             "jnc T1",
             "inx R",
             "D1"
+        ]
+    },
+    {
+        "require": ["ulequ"],
+        "regs": "ANY",
+        "action": [
+            "lxi R,0",
+            "jnz T1",
+            "jc T1",
+            "inx R",
+            "D1"
+        ]
+    },
+    {
+        "require": ["ijmp"],
+        "regs": "HL",
+        "action": "pchl"
+    },
+    {
+        "require": ["or"],
+        "commutative": true,
+        "action": [
+            "mov a,l",
+            "ora e",
+            "mov l,a",
+            "mov a,h",
+            "ora d",
+            "mov h,a"
+        ]
+    },
+    {
+        "require": ["mult"],
+        "leftreq": ["con 2"],
+        "regs": "HL",
+        "action": [
+            "dad h"
+        ]
+    },
+    {
+        "require": ["mult"],
+        "rightreq": ["con 2"],
+        "regs": "HL",
+        "action": [
+            "dad h"
+        ]
+    },
+    {
+        "require": ["mult"],
+        "commutative": true,
+        "action": [
+            "call cmult"
+        ]
+    },
+    {
+        "require": ["neg"],
+        "regs": "ANY",
+        "action": [
+            "mov a,RLOW",
+            "xri $FF",
+            "mov RLOW,a",
+            "mov a,R",
+            "xri $FF",
+            "mov R,a",
+            "inx R"
+        ]
+    },
+    {
+        "require": ["rshift"],
+        "action": [
+            "D1",
+            "mov a,e",
+            "ora d",
+            "jz T2",
+            "mov a,h",
+            "rrc",
+            "ani $7F",
+            "mov h,a",
+            "mov a,l",
+            "rar",
+            "mov l,a",
+            "jmp T1",
+            "D2"
+        ]
+    },
+    {
+        "require": ["lshift"],
+        "action": [
+            "D1",
+            "mov a,e",
+            "ora d",
+            "jz T2",
+            "dad h",
+            "jmp T1",
+            "D2"
         ]
     }
 ]

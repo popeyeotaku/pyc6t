@@ -6,6 +6,7 @@ from enum import Enum, IntEnum, auto
 from typing import Any, Iterator, Mapping
 from pathlib import Path
 import json
+import re
 
 from backend import CodeGen, Command, Node as BackNode, backend as dobackend
 import c6t
@@ -156,7 +157,8 @@ class Node:
             return Node(label)
         start = Node(label, nodes[0])
         for node in nodes[1:]:
-            start = cls._joinrep(start, node)
+            append = Node(label, node)
+            start = cls._joinrep(start, append)
         return start
 
     @classmethod
@@ -247,28 +249,55 @@ class Template:
 
     def expand(self, state: CodeState, node: Node, reg: Reg = Reg.HL) -> str:
         """Return an expanded version of the node."""
-        temp1 = None
+        temp1, temp2 = None, None
 
         action = self.action
         if 'T1' in action or 'D1' in action:
             temp1 = state.temp()
-
-        action = action.replace('T1', str(temp1))
-        action = action.replace('RLOW', Reg(reg).name[1].lower())
-        if node.left:
-            action = action.replace('LV', str(node.left.value))
-        if node.right:
-            action = action.replace('RV', str(node.right.value))
-        action = action.replace('V', str(node.value))
-        action = action.replace('R', Reg(reg).name[0].lower())
+        if 'T2' in action or 'D2' in action:
+            temp2 = state.temp()
 
         out = ''
-        for line in action.splitlines():
-            line = f'\t{line}\n'
-            if 'D1' in line:
-                out += f'{temp1}:\n'
-            else:
-                out += line
+        matcher = re.compile(
+            r'([_a-zA-Z][_a-zA-Z0-9]*)|([^_a-zA-Z]+)', re.DOTALL)
+        for line in action.splitlines(keepends=False):
+            outline = ''
+            for match in matcher.finditer(line, 0):
+                name, other = match.groups(default=None)
+                if name is None:
+                    assert other is not None
+                    outline += other
+                else:
+                    match name:
+                        case 'T1':
+                            outline += str(temp1)
+                        case 'T2':
+                            outline += str(temp2)
+                        case 'RLOW':
+                            outline += Reg(reg).name[1].lower()
+                        case 'LV':
+                            assert node.left and node.left.value is not None
+                            outline += str(node.left.value)
+                        case 'RV':
+                            assert node.right and node.right.value is not None
+                            outline += str(node.right.value)
+                        case 'V':
+                            assert node.value is not None
+                            outline += str(node.value)
+                        case 'R':
+                            outline += str(Reg(reg).name[0].lower())
+                        case 'D1':
+                            out += f'{temp1}:\n'
+                            outline = ''
+                            break
+                        case 'D2':
+                            out += f'{temp2}:\n'
+                            outline = ''
+                            break
+                        case _:
+                            outline += name
+            out += f'\t{outline}\n'
+
         return out
 
 
@@ -401,6 +430,21 @@ class Code80(CodeGen):
         label = node.label
         value = node.value
         match label:
+            case 'asnadd' | 'asnsub' | 'asnmult' | 'asndiv' | 'asnmod' \
+                    | 'asnrshift' | 'asnlshift' | 'asnand' | 'asneor' | 'asnor' \
+                    | 'casnadd' | 'casnsub' | 'casnmult' | 'casndiv' | 'casnmod' \
+                    | 'casnrshift' | 'casnlshift' | 'casnand' | 'casneor' | 'casnor':
+                if label[0] == 'c':
+                    prefix = 'c'
+                    label = label[1:]
+                else:
+                    prefix = ''
+                label = label.removeprefix('asn')
+                return Node(f'{prefix}store',
+                            children[0],
+                            Node(label,
+                                 Node(f'{prefix}load', children[0]),
+                                 children[1]))
             case 'great' | 'less' | 'ugreat' | 'uless' | 'nequ' | 'equ' \
                     | 'gequ' | 'lequ' | 'ugequ' | 'ulequ':
                 children[0] = Node(
@@ -414,6 +458,8 @@ class Code80(CodeGen):
             case 'postinc' | 'preinc' | 'predec' | 'postdec':
                 assert isinstance(children[1], Node)
                 value = children[1].value
+                assert isinstance(value, int)
+                assert value is not None
                 children[1] = None
             case 'register':
                 label = 'extern'
@@ -560,8 +606,48 @@ class Code80(CodeGen):
             right = None
         return left, right
 
+    def doswitch(self, expr: BackNode, brklab: BackNode,
+                 cases: BackNode, tablab: BackNode) -> None:
+        """Assemble a switch statement."""
+        node = Node(
+            'call',
+            Node(
+                'extern', value='doswitch'
+            ),
+            Node(
+                'comma',
+                Node(
+                    'extern', value=brklab.value
+                ),
+                Node(
+                    'comma',
+                    Node(
+                        'con', value=cases.value
+                    ),
+                    Node(
+                        'comma',
+                        Node(
+                            'extern', value=tablab.value
+                        ),
+                        Node(
+                            'comma',
+                                self.convert(expr)
+                        )
+                    )
+                )
+            ),
+            value=4
+        )
+        self.eval(node)
+
     def command(self, command: Command, nodestk: list[BackNode]) -> None:
         match command.cmd:
+            case 'doswitch':
+                tablab = nodestk.pop()
+                cases = nodestk.pop()
+                brklab = nodestk.pop()
+                expr = nodestk.pop()
+                self.doswitch(expr, brklab, cases, tablab)
             case '.text' | '.data' | '.string' | '.bss':
                 self.state.curseg = command.cmd
             case '.export' | 'useregs':
@@ -571,8 +657,9 @@ class Code80(CodeGen):
             case 'brz':
                 self.eval(Node('brz', self.convert(nodestk.pop()),
                                value=command.args[0]))
-            case '.dc':
-                line = f".byte {','.join((str(arg) for arg in command.args))}"
+            case '.dc' | '.dw':
+                cmd = '.byte' if command.cmd == '.dc' else '.word'
+                line = f"{cmd} {','.join((str(arg) for arg in command.args))}"
                 self.asmlines(line)
             case 'retnull':
                 self.asmlines('jmp cret')
@@ -592,6 +679,8 @@ class Code80(CodeGen):
                     else:
                         arg = None
                     fakenode = Node(command.cmd, value=arg)
+                    match = self.scheme[command.cmd][0]
+                    assert match.regs == TRegs.SPECIAL
                     self.expand(self.scheme[command.cmd][0],
                                 fakenode, Reg.HL)
                 else:
@@ -611,4 +700,4 @@ def test(source: PathType):
 
 
 if __name__ == "__main__":
-    test('wrap.c')
+    test('ed.c')

@@ -36,7 +36,25 @@ NODECHILDREN: dict[str, int] = {
     'cload': 1,
     'nequ': 2,
     'less': 2,
-    'and': 2
+    'and': 2,
+    "ijmp": 1,
+    "or": 2,
+    'ulequ': 2,
+    'asnmult': 2,
+    'asnadd': 2,
+    "neg": 1,
+    "ugreat": 2,
+    'asnand': 2,
+    'ugequ': 2,
+    'asnsub': 2,
+    'rshift': 2,
+    "lshift": 2,
+    'asnor': 2,
+    'asnrshift': 2,
+    'casnor': 2,
+    'postdec': 2,
+    'predec': 2,
+    'preinc': 2,
 }
 
 

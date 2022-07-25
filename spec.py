@@ -423,7 +423,7 @@ def outinit(parser: Parser, cmd: str, node: Node, offset: int,
             else:
                 assert isinstance(node.value, Symbol)
                 assert node.value.storage == 'extern'
-                val = node.value.name
+                val = '_' + node.value.name
             goseg(parser, 'data')
             pseudo(parser, f'{cmd} {val}{offstr}')
         case _:
@@ -489,7 +489,8 @@ def datadef(parser: Parser, name: str, typestr: TypeString) -> None:
     if parser.peek().label in (',', ';'):
         # No initializer
         goseg(parser, 'bss')
-        pseudo(parser, f'common _{name}, {tysize(typestr)}')
+        if typestr[0].type != 'func':
+            pseudo(parser, f'common _{name}, {tysize(typestr)}')
     else:
         # Initializer
         goseg(parser, 'data')
