@@ -8,3 +8,6 @@ ed.ir
 glob.c
 wrap.s
 hello.s
+debugcode.txt
+hello.sym
+hello.bin

@@ -10,6 +10,76 @@ import json
 from backend import CodeGen, Command, Node as BackNode, backend as dobackend
 import c6t
 
+ASM_HEADER = """
+    .target "8080"
+    .format "bin"
+    .setting "CaseSensitiveMode",true
+    .setting "Debug",true
+    .setting "DebugFile","hello.sym"
+    
+    
+    .org 0
+; C6T Standard Header for Intel 8080
+
+start:
+    lxi sp,$F000
+    call _main
+_exit:
+    hlt
+    jmp _exit
+
+cret:
+    mov l,c
+    mov h,b
+    sphl
+    pop h
+    shld reg2
+    pop h
+    shld reg1
+    pop h
+    shld reg0
+    pop b
+    ret
+
+reg0: .word 0
+reg1: .word 0
+reg2: .word 0
+
+cextend:
+    mvi h,0
+    mov a,l
+    rlc
+    jnc noextend
+    dcr h
+noextend:
+    ret
+
+_in80:
+    lxi h,2
+    dad sp
+    mov a,m
+    sta inrel+1
+inrel:
+    in 0
+    mov l,a
+    call cextend
+    ret
+
+_out80:
+    lxi h,2
+    dad sp
+    mov a,m
+    sta outrel+1
+    lxi h,4
+    dad sp
+    mov a,m
+outrel:
+    out 0
+    ret
+
+
+"""
+
 PathType = Path | str
 
 SEGMENTS = (
@@ -282,7 +352,7 @@ class Code80(CodeGen):
         self.state = CodeState()
 
     def getasm(self) -> str:
-        out = ''
+        out = ASM_HEADER
         for seg in SEGMENTS:
             out += self.state.segs[seg]
         return out
@@ -448,7 +518,7 @@ class Code80(CodeGen):
                 self.eval(Node('brz', self.convert(nodestk.pop()),
                                value=command.args[0]))
             case '.dc':
-                line = f".dc {','.join((str(arg) for arg in command.args))}"
+                line = f".byte {','.join((str(arg) for arg in command.args))}"
                 self.asmlines(line)
             case 'retnull':
                 self.asmlines('jmp cret')

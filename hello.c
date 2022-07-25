@@ -31,7 +31,7 @@ puts(string)
 #define SIOXMIT 02
 #define SIOREC 01
 
-intsio()
+initsio()
 {
     out80(SIOPORT, SIOCLK<<5+SIOPAR<<2+SIOCLK);
 }

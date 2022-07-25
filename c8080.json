@@ -125,7 +125,7 @@
         "action": [
             "mov a,l",
             "ora h",
-            "jne V"
+            "jnz V"
         ],
         "flags": ["leftleft"]
     },
@@ -135,7 +135,7 @@
         "action": [
             "mov a,h",
             "ora l",
-            "je V"
+            "jz V"
         ]
     },
     {
@@ -192,7 +192,7 @@
             "mov a,l",
             "ora h",
             "lxi h,0",
-            "jne T1",
+            "jnz T1",
             "inx h",
             "D1"
         ]
