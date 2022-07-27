@@ -11,7 +11,7 @@ import spec
 import backend
 from parse_state import Parser
 
-DEBUG = True
+DEBUG = False
 
 
 def compile_c6t(source: str) -> tuple[str, int]:

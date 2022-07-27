@@ -12,24 +12,19 @@ from backend import CodeGen, Command, Node as BackNode, backend as dobackend
 import c6t
 
 ASM_HEADER = """
-    .target "8080"
-    .format "bin"
-    .setting "CaseSensitiveMode",true
-    .setting "Debug",true
-    .setting "DebugFile","8080.sym"
-    
-    
-    .org 0
 ; C6T Standard Header for Intel 8080
-
+    .text
 start:
-    lxi sp,$F000
+    .export start
+    lxi sp,$FF00
     call _main
 _exit:
+    .export _exit
     hlt
     jmp _exit
 
 csave:
+    .export csave
     pop d
     push b
     lhld reg0
@@ -46,6 +41,7 @@ csave:
     pchl
 
 cret:
+    .export cret
     mov l,c
     mov h,b
     sphl
@@ -59,14 +55,19 @@ cret:
     ret
 
 ccall:
+    .export ccall
     pop d
     pchl
 
-reg0: .word 0
-reg1: .word 0
-reg2: .word 0
+    .bss
+reg0: .storage 2
+reg1: .storage 2
+reg2: .storage 2
+    .export reg0,reg1,reg2
 
+    .text
 cextend:
+    .export cextend
     mvi h,0
     mov a,l
     rlc
@@ -76,6 +77,7 @@ noextend:
     ret
 
 _in80:
+    .export _in80
     lxi h,2
     dad sp
     mov a,m
@@ -87,6 +89,7 @@ inrel:
     ret
 
 _out80:
+    .export _out80
     lxi h,2
     dad sp
     mov a,m
@@ -403,6 +406,7 @@ class Code80(CodeGen):
     def getasm(self) -> str:
         out = ASM_HEADER
         for seg in SEGMENTS:
+            out += seg + '\n'
             out += self.state.segs[seg]
         return out
 
@@ -652,7 +656,10 @@ class Code80(CodeGen):
                 self.doswitch(expr, brklab, cases, tablab)
             case '.text' | '.data' | '.string' | '.bss':
                 self.state.curseg = command.cmd
-            case '.export' | 'useregs':
+            case '.export':
+                for arg in command.args:
+                    self.asmlines(f'.export {arg}')
+            case 'useregs':
                 pass
             case 'eval':
                 self.eval(self.convert(nodestk.pop()))
@@ -692,7 +699,7 @@ class Code80(CodeGen):
 def test(source: PathType):
     """Run a test program."""
     path = Path(source)
-    irsrc, errors = c6t.compile_c6t(path.read_text('utf8'))
+    irsrc, _ = c6t.compile_c6t(path.read_text('utf8'))
     path.with_suffix('.ir').write_text(irsrc, 'utf8')
     codegen = Code80()
     try:

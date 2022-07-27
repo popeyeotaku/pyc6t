@@ -74,7 +74,7 @@
         "action": [
             "call LV",
             "xchg",
-            "lxi h,V*2",
+            "lxi h,V+V",
             "dad sp",
             "sphl",
             "xchg"
@@ -118,7 +118,7 @@
         "action": [
             "call ccall",
             "xchg",
-            "lxi h,V*2",
+            "lxi h,V+V",
             "dad sp",
             "sphl",
             "xchg"
@@ -667,10 +667,10 @@
         "regs": "ANY",
         "action": [
             "mov a,RLOW",
-            "xri $FF",
+            "cma",
             "mov RLOW,a",
             "mov a,R",
-            "xri $FF",
+            "cma",
             "mov R,a",
             "inx R"
         ]
