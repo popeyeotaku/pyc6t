@@ -56,6 +56,18 @@
         ]
     },
     {
+        "require": ["call", 4],
+        "regs": "SPECIAL",
+        "leftreq": ["extern"],
+        "action": [
+            "call LV",
+            "pop d",
+            "pop d",
+            "pop d",
+            "pop d"
+        ]
+    },
+    {
         "require": ["call"],
         "regs": "SPECIAL",
         "leftreq": ["extern"],
@@ -71,8 +83,33 @@
     {
         "require": ["call", 0],
         "regs": "SPECIAL",
+        "action": "call ccall"
+    },
+    {
+        "require": ["call", 1],
+        "regs": "SPECIAL",
         "action": [
-            "call ccall"
+            "call ccall",
+            "pop d"
+        ]
+    },
+    {
+        "require": ["call", 2],
+        "regs": "SPECIAL",
+        "action": [
+            "call ccall",
+            "pop d",
+            "pop d"
+        ]
+    },
+    {
+        "require": ["call", 3],
+        "regs": "SPECIAL",
+        "action": [
+            "call ccall",
+            "pop d",
+            "pop d",
+            "pop d"
         ]
     },
     {
@@ -181,6 +218,36 @@
         "regs": "ANY",
         "action": [
             "lxi R,V"
+        ]
+    },
+    {
+        "require": ["add"],
+        "rightreq": ["con", 0],
+        "regs": "ANY",
+        "action": ""
+    },
+    {
+        "require": ["add"],
+        "leftreq": ["con", 0],
+        "regs": "ANY",
+        "action": ""
+    },
+    {
+        "require": ["add"],
+        "leftreq": ["con", 2],
+        "regs": "ANY",
+        "action": [
+            "inx R",
+            "inx R"
+        ]
+    },
+    {
+        "require": ["add"],
+        "rightreq": ["con", 2],
+        "regs": "ANY",
+        "action": [
+            "inx R",
+            "inx R"
         ]
     },
     {
@@ -376,15 +443,23 @@
         "require": ["sub"],
         "rightreq": ["con", 1],
         "regs": "ANY",
-        "commutative": true,
         "action": [
             "dcx R"
         ]
     },
     {
         "require": ["sub"],
+        "rightreq": ["con", 2],
+        "regs": "ANY",
+        "action": [
+            "dcx R",
+            "dcx R"
+        ]
+    },
+    {
+        "require": ["sub"],
         "rightreq": ["con"],
-        "regs": "HL",
+        "regs": "SPECIAL",
         "action": [
             "lxi d,~RV+1",
             "dad d"
@@ -545,11 +620,6 @@
         ]
     },
     {
-        "require": ["ijmp"],
-        "regs": "HL",
-        "action": "pchl"
-    },
-    {
         "require": ["or"],
         "commutative": true,
         "action": [
@@ -563,7 +633,15 @@
     },
     {
         "require": ["mult"],
-        "leftreq": ["con 2"],
+        "leftreq": ["con", 2],
+        "regs": "HL",
+        "action": [
+            "dad h"
+        ]
+    },
+    {
+        "require": ["mult"],
+        "rightreq": ["con", 2],
         "regs": "HL",
         "action": [
             "dad h"
@@ -626,5 +704,16 @@
             "jmp T1",
             "D2"
         ]
+    },
+    {
+        "require": ["ijmp"],
+        "regs": "ANY",
+        "leftreq": ["extern"],
+        "action": "jmp LV"
+    },
+    {
+        "require": ["ijmp"],
+        "regs": "HL",
+        "action": "pchl"
     }
 ]

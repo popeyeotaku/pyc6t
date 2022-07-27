@@ -319,7 +319,7 @@ class Scheme(Mapping[str, tuple[Template, ...]]):
             self._templs[label] = []
         tlist = self._templs[label]
         if template in tlist:
-            raise ValueError('template already in scheme')
+            raise ValueError('template already in scheme', template)
         tlist.append(template)
 
     def __getitem__(self, key: str) -> tuple[Template, ...]:
@@ -445,16 +445,16 @@ class Code80(CodeGen):
                             Node(label,
                                  Node(f'{prefix}load', children[0]),
                                  children[1]))
-            case 'great' | 'less' | 'ugreat' | 'uless' | 'nequ' | 'equ' \
+            case 'equ' | 'nequ':
+                children[0] = Node('sub', children[0], children[1])
+                children[1] = None
+                label = 'log' if label == 'nequ' else 'lognot'
+            case 'great' | 'less' | 'ugreat' | 'uless' \
                     | 'gequ' | 'lequ' | 'ugequ' | 'ulequ':
                 children[0] = Node(
                     'cmp', children[0], children[1]
                 )
                 children[1] = None
-                if label == 'nequ':
-                    label = 'log'
-                elif label == 'equ':
-                    label = 'lognot'
             case 'postinc' | 'preinc' | 'predec' | 'postdec':
                 assert isinstance(children[1], Node)
                 value = children[1].value
@@ -631,7 +631,7 @@ class Code80(CodeGen):
                         ),
                         Node(
                             'comma',
-                                self.convert(expr)
+                            self.convert(expr)
                         )
                     )
                 )
@@ -642,6 +642,8 @@ class Code80(CodeGen):
 
     def command(self, command: Command, nodestk: list[BackNode]) -> None:
         match command.cmd:
+            case 'ijmp':
+                self.eval(Node('ijmp', self.convert(nodestk.pop())))
             case 'doswitch':
                 tablab = nodestk.pop()
                 cases = nodestk.pop()
@@ -690,7 +692,7 @@ class Code80(CodeGen):
 def test(source: PathType):
     """Run a test program."""
     path = Path(source)
-    irsrc = c6t.compile_c6t(path.read_text('utf8'))
+    irsrc, errors = c6t.compile_c6t(path.read_text('utf8'))
     path.with_suffix('.ir').write_text(irsrc, 'utf8')
     codegen = Code80()
     try:

@@ -37,7 +37,6 @@ NODECHILDREN: dict[str, int] = {
     'nequ': 2,
     'less': 2,
     'and': 2,
-    "ijmp": 1,
     "or": 2,
     'ulequ': 2,
     'asnmult': 2,
@@ -55,6 +54,7 @@ NODECHILDREN: dict[str, int] = {
     'postdec': 2,
     'predec': 2,
     'preinc': 2,
+    'comma': 2,
 }
 
 

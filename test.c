@@ -1,16 +1,14 @@
-main(argc, argv) char **argv;
-{
-    int i;
+struct foobar {
+    int foo;
+    int (*bar)();
+    struct foobar *next;
+};
 
-    for (i = 0; i < argc; i++) {
-        puts(argv[i]);
-        continue;
-        break;
-    };
-    
-    for (i = 0; i < argc) {
-        puts(argv[i++]);
-        continue;
-        break;
-    }
+foobar(head, foo)
+{
+    register *pnt, f;
+
+    for (pnt = head, f = foo; pnt; pnt = pnt->next)
+        if (pnt->foo == f)
+            (*pnt->bar)(f);
 }

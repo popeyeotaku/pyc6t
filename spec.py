@@ -312,12 +312,12 @@ def funcdef(parser: Parser, name: str, typestr: TypeString,
 
     goseg(parser, 'text')
 
-    if auto_offset != 0:
-        asm(parser, f'lenautos {util.word(-auto_offset)}')
-
     asm(parser, f'useregs {regs}')
 
     pseudo(parser, f'func _{name}')
+
+    if auto_offset != 0:
+        asm(parser, f'lenautos {util.word(-auto_offset)}')
 
     while not parser.match('}'):
         parser.eoferror()
