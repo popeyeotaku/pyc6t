@@ -17,7 +17,7 @@ STRUCT_NAME = f"<{NAMELEN}s"
 
 def bytename(name: str) -> bytes:
     """Properly encode a bytes representation of a symbol name."""
-    name = (name + '\x00' * NAMELEN)[:NAMELEN].encode('ascii')
+    return (name + '\x00' * NAMELEN)[:NAMELEN].encode('ascii')
 
 
 class SymFlag(IntFlag):
@@ -148,7 +148,7 @@ class Module:
         i = 6
         text, i = self._inseg(source, i)
         if self.seglen(text) != textlen:
-            raise ValueError
+            raise ValueError(self.seglen(text), textlen)
         data, i = self._inseg(source, i)
         if self.seglen(data) != datalen:
             raise ValueError

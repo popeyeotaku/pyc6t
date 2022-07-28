@@ -3,9 +3,11 @@
 import sys
 import argparse
 from pathlib import Path
+from asm80 import Assembler
 from assembly import deflab, goseg, pseudo
 import c8080
 from lexer import Tokenizer
+from linker import Linker, Module
 import preproc
 import spec
 import backend
@@ -65,32 +67,73 @@ def compilefile(path: Path | str) -> tuple[str | None, str | None]:
 cmdparse = argparse.ArgumentParser(
     description="C6T - C version 6 compiler by Troy")
 cmdparse.add_argument('-P', help='save preprocessed verisons of the source'
-                      'files in .i extensions', action='store_true')
+                      'files in .i extensions', action='store_true',
+                      default=False, dest='preproc')
+cmdparse.add_argument('-c', help='save object files only, no linkage',
+                      action='store_true', default=False, dest='nolink')
+cmdparse.add_argument('-o', help='output executable name', nargs=1,
+                      default='a.out', dest='outname')
+cmdparse.add_argument('-S', help='save assembly output only',
+                      action='store_true', default=False, dest='outasm')
+cmdparse.add_argument('-Y', help='output symbol files',
+                      action='store_true', default=False, dest='outsym')
+cmdparse.add_argument('-R', help='output intermediate format file',
+                      action='store_true', default=False, dest='outir')
 cmdparse.add_argument('sources', nargs='+', help='the C6T source files')
 
 
 def main() -> None:
     """Main called from command line."""
     if DEBUG:
-        argv = ['test.c']
+        argv = '-o hello.bin -Y hello.c'.split()
     else:
-        argv = sys.argv
+        argv = sys.argv[1:]
     args = cmdparse.parse_args(argv)
+    modules: list[Module] = []
     for source in args.sources:
         assert isinstance(source, str)
         path = Path(source)
-        if path.suffix.casefold() != '.c'.casefold():
-            continue
-        if hasattr(args, '-P'):
-            out: Path = out.with_suffix('.i')
-            preproced = preproc.preproc(path.read_text('utf8'))
-            out.write_text(preproced, 'utf8')
-        else:
-            ir_source, asm = compilefile(source)
-            if None in (ir_source, asm):
+        if path.suffix == '.c':
+            if args.preproc:
+                out = preproc.preproc(path.read_text('utf8'))
+                path.with_suffix('.i').write_text(out, 'utf8')
                 continue
-            path.with_suffix('.ir').write_text(ir_source, 'utf8')
-            path.with_suffix('.s').write_text(asm, 'utf8')
+            ir_src, asm_src = compilefile(path)
+            if None in (ir_src, asm_src):
+                return
+            if args.outir:
+                path.with_suffix('.ir').write_text(ir_src, 'utf8')
+            if args.outasm:
+                path.with_suffix('.s').write_text(asm_src, 'utf8')
+                continue
+            assembler = Assembler(asm_src)
+            module = assembler.assemble()
+            if not module:
+                return
+            if args.nolink:
+                path.with_suffix('.o').write_bytes(bytes(module))
+                continue
+            modules.append(module)
+        elif path.suffix == '.s' and not args.nolink:
+            assembler = Assembler(path.read_text('utf8'))
+            module = assembler.assemble()
+            if not module:
+                continue
+            modules.append(module)
+        else:
+            module = Module().from_bytes(path.read_bytes())
+    if args.nolink or not modules:
+        return
+    linker = Linker(*modules)
+    linked = linker.link()
+    outname = args.outname[0]
+    Path(outname).write_bytes(linked)
+    if args.outsym:
+        syms = ''
+        for symbol in sorted(linker.symtab.values(),
+                             key=lambda s: s.value):
+            syms += f'{symbol.name}: ${hex(symbol.value)}/{oct(symbol.value)}\n'
+        Path(outname).with_suffix('.sym').write_text(syms, 'utf8')
 
 
 if __name__ == "__main__":
