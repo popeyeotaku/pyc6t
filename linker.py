@@ -14,6 +14,11 @@ STRUCT_WORD = "<H"
 STRUCT_NAME = f"<{NAMELEN}s"
 
 
+def bytename(name: str) -> bytes:
+    """Properly encode a bytes representation of a symbol name."""
+    name = (name + '\x00' * NAMELEN)[:NAMELEN].encode('ascii')
+
+
 class RefFlag(IntFlag):
     """Flags for a segment reference record."""
     BYTE = 1
@@ -26,13 +31,19 @@ class RefFlag(IntFlag):
 class Reference:
     """A relocation reference in a segment."""
     flags: RefFlag
-    symbol: str
+    name: str
     con: int
 
     def __len__(self) -> int:
         if self.flags & RefFlag.BYTE:
             return 1
         return 2
+
+    def __bytes__(self) -> bytes:
+        return struct.pack(f"<b{NAMELEN}sH",
+                           -self.flags,
+                           bytename(self.name),
+                           self.con)
 
 
 class SymFlag(IntFlag):
@@ -52,6 +63,12 @@ class Symbol:
     flags: SymFlag
     name: str
     value: int
+
+    def __bytes__(self) -> bytes:
+        return struct.pack(f"<{NAMELEN}sHB",
+                           bytename(self.name),
+                           self.value,
+                           self.flags)
 
 
 @dataclass
@@ -126,19 +143,18 @@ class Module:
                 seg.append(source[i:i+count])
                 i += count
             elif count < 0:
-                ref, i = self._inref(source, i)
+                ref, i = self._inref(-count, source, i)
                 seg.append(ref)
             else:
                 break
         return seg, i
 
-    def _inref(self, source: bytes, i: int) -> tuple[Reference, int]:
+    def _inref(self, flags: int, source: bytes,
+               i: int) -> tuple[Reference, int]:
         """Read a references at the given i position in the source bytes.
         Return the reference and a new i value after it.
         """
-        flags = struct.unpack_from(STRUCT_UBYTE, source, i)[0]
-        assert isinstance(flags, int)
-        i += 1
+        flags = RefFlag(flags)
         if flags & RefFlag.SYMBOL:
             symbol, i = self._inname(source, i)
         else:
@@ -153,3 +169,18 @@ class Module:
     def seglen(seg: list[bytes | Reference]) -> int:
         """Return the length in bytes of the segment."""
         return sum((len(elem) for elem in seg))
+
+    def __bytes__(self):
+        out = struct.pack("<HHH",
+                          self.seglen(self.text),
+                          self.seglen(self.data),
+                          self.bss_len)
+        for seg in self.text, self.data:
+            for elem in seg:
+                out += bytes(elem)
+            out += b'\x00'
+        for symbol in self.symtab.values():
+            out += bytes(symbol)
+        out += b'\x00'
+
+        return out
