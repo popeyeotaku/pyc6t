@@ -38,6 +38,16 @@ class Symbol:
     name: str
     value: int
 
+    @property
+    def export(self) -> bool:
+        """Flag for if this symbol is exported."""
+        return bool(self.flags & SymFlag.EXPORT)
+
+    @property
+    def common(self) -> bool:
+        """A flag for if this is a common marked symbol."""
+        return bool(self.flags & SymFlag.COMMON)
+
     def __bytes__(self) -> bytes:
         return struct.pack(f"<{NAMELEN}sHB",
                            bytename(self.name),
@@ -69,6 +79,11 @@ class Reference:
     flags: RefFlag
     name: str
     con: int
+
+    @property
+    def symbol(self) -> bool:
+        """Return a flag for if this is a symbol reference or not."""
+        return bool(self.flags & RefFlag.SYMBOL)
 
     def __len__(self) -> int:
         if self.flags & RefFlag.BYTE:
@@ -239,6 +254,8 @@ class Linker:
         self.modules = list(modules)
         self.symtab: dict[str, Symbol] = {}
         self.modsyms: list[dict[str, Symbol]]
+        self.common_bss: int = 0
+        self.commons: list[Symbol] = []
 
     def link(self) -> bytes:
         """Link the symbol table."""
@@ -280,7 +297,8 @@ class Linker:
                     if (symbol.flags & SymFlag.SEG) != segnum:
                         continue
                     newsym = symbol.copy()
-                    newsym.value += offset
+                    if not newsym.common:
+                        newsym.value += offset
                     modsym.append(newsym)
                 if seg == 'bss':
                     offset += module.bss_len
@@ -290,5 +308,44 @@ class Linker:
 
         for modtab in self.modsyms:
             for sym in modtab.values():
-                if sym.flags & SymFlag.EXPORT:
+                if sym.export and not sym.common:
                     self.symtab[sym.name] = sym
+
+        self._commons(offset)
+
+    def _commons(self, offset: int) -> None:
+        """Resolve common references."""
+        self.commons.clear()
+
+        commons: dict[str, int] = {}
+
+        for symtab in self.modsyms:
+            for sym in symtab.values():
+                if sym.common:
+                    name = sym.name
+                    size = sym.value
+                    if name in commons and commons[name] > size:
+                        size = commons[name]
+                    commons[name] = size
+
+        resolved: dict[str, Symbol] = {}
+        for name in commons.copy():
+            if name in self.symtab:
+                sym = self.symtab[name]
+                assert not sym.common
+                resolved[sym.name] = sym
+                del commons[name]
+
+        for name, size in commons.items():
+            sym = Symbol(SymFlag.EXPORT | SymFlag.BSS, name, offset)
+            offset += size
+            self.commons.append(sym)
+            self.symtab[sym.name] = sym
+        self.common_bss = offset
+
+        for modsym in self.modsyms:
+            for name, sym in modsym.copy().items():
+                if sym.common:
+                    del modsym[name]
+
+        self.symtab.update(resolved)
