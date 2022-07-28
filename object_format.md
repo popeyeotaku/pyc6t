@@ -57,5 +57,15 @@ A leading name byte of 0 marks the end of the symbol table.
 
 The flags are as follows:
 
-- *Bit 0*: set if external, clear if internal. If external, the value should be ignored.
 - *Bits 0-1*: indicates text, data, or bss segments if values are 0, 1, or 2 respectively. Value 4 is currently reserved.
+- *Bit 2*: set if external, clear if internal. If external, the value should be ignored.
+- *Bit 3*: set if this symbol should be exported, cleared if it should only be local to this file.
+- *Bit 4*: set if this symbol is common: if so, its value is taken to be its size in bytes. See below.
+
+Remaining bits are reserved.
+
+### Common Symbols
+
+If a symbol is marked common, and the final linkage sees it is not defined non-commonly anywhere, then it is set up in the BSS segment with its size being the max of all common references to it.
+
+However, if it was defined anywhere, then all common references are ignored, and instead redirected to the defined symbol.
