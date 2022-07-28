@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import IntFlag
 import struct
+from util import word
 
 NAMELEN = 8
 
@@ -17,33 +18,6 @@ STRUCT_NAME = f"<{NAMELEN}s"
 def bytename(name: str) -> bytes:
     """Properly encode a bytes representation of a symbol name."""
     name = (name + '\x00' * NAMELEN)[:NAMELEN].encode('ascii')
-
-
-class RefFlag(IntFlag):
-    """Flags for a segment reference record."""
-    BYTE = 1
-    HI = 2
-    SYMBOL = 4
-    HILO = 8
-
-
-@dataclass
-class Reference:
-    """A relocation reference in a segment."""
-    flags: RefFlag
-    name: str
-    con: int
-
-    def __len__(self) -> int:
-        if self.flags & RefFlag.BYTE:
-            return 1
-        return 2
-
-    def __bytes__(self) -> bytes:
-        return struct.pack(f"<b{NAMELEN}sH",
-                           -self.flags,
-                           bytename(self.name),
-                           self.con)
 
 
 class SymFlag(IntFlag):
@@ -69,6 +43,78 @@ class Symbol:
                            bytename(self.name),
                            self.value,
                            self.flags)
+
+    def copy(self) -> Symbol:
+        """Return a duplicate of the symbol"""
+        return Symbol(self.flags, self.name, self.value)
+
+
+SEGS = {'text': SymFlag.TEXT,
+        'data': SymFlag.DATA,
+        'bss': SymFlag.BSS}
+
+
+class RefFlag(IntFlag):
+    """Flags for a segment reference record."""
+    BYTE = 1
+    HI = 2
+    SYMBOL = 4
+    HILO = 8
+    ALWAYS_SET = 16
+
+
+@dataclass
+class Reference:
+    """A relocation reference in a segment."""
+    flags: RefFlag
+    name: str
+    con: int
+
+    def __len__(self) -> int:
+        if self.flags & RefFlag.BYTE:
+            return 1
+        return 2
+
+    def __bytes__(self) -> bytes:
+        return struct.pack(f"<b{NAMELEN}sH",
+                           -(self.flags | RefFlag.ALWAYS_SET),
+                           bytename(self.name),
+                           self.con)
+
+    def resolve(self, offset: int, *symtabs: dict[str, Symbol]) -> bytes:
+        """Resolve the reference, returning its byte value."""
+        mode = ''
+        if self.flags & RefFlag.HILO:
+            if self.flags & RefFlag.HI:
+                mode = 'hi'
+            else:
+                mode = 'lo'
+        isword = not self.flags & RefFlag.BYTE
+
+        if self.flags & RefFlag.SYMBOL:
+            found = False
+            for symtab in symtabs:
+                if self.name in symtab:
+                    symbol = symtab[self.name]
+                    if symbol.flags & SymFlag.COMMON:
+                        raise ValueError('illegal common')
+                    data = self.con + symbol.value
+                    found = True
+                    break
+            if not found:
+                raise ValueError('undefined symbol', self.name)
+        else:
+            data = offset + self.con
+        assert isinstance(data, int)
+        data = word(data).to_bytes(2, 'little')
+        assert len(data) == 2
+        if mode == 'hi':
+            data = bytes([data[1], 0])
+        elif mode == 'lo':
+            data = bytes([data[0], 0])
+        if isword:
+            return data
+        return bytes([data[0]])
 
 
 @dataclass
@@ -184,3 +230,65 @@ class Module:
         out += b'\x00'
 
         return out
+
+
+class Linker:
+    """Links together object modules."""
+
+    def __init__(self, *modules: Module) -> None:
+        self.modules = list(modules)
+        self.symtab: dict[str, Symbol] = {}
+        self.modsyms: list[dict[str, Symbol]]
+
+    def link(self) -> bytes:
+        """Link the symbol table."""
+        self.buildsyms()
+
+        out = bytes()
+        for seg in ('text', 'data'):
+            for i, module in enumerate(self.modules):
+                out += self.resolve(len(out), self.modsyms[i],
+                                    getattr(module, seg))
+        return out + bytes(sum((mod.bss_len for mod in self.modules)))
+
+    def resolve(self, offset: int, modsym: dict[str, Symbol],
+                seg: list[bytes | Reference]):
+        """Resolve all references in a given segment."""
+        out = bytes()
+        for elem in seg:
+            if isinstance(elem, bytes):
+                out += elem
+            elif isinstance(elem, Reference):
+                out += elem.resolve(offset+len(out), modsym, self.symtab)
+            else:
+                raise TypeError(elem)
+        return out
+
+    def buildsyms(self) -> None:
+        """Construct the symbol table."""
+        self.symtab.clear()
+        self.modsyms.clear()
+        for _ in range(len(self.modules)):
+            self.modsyms.append({})
+        offset = 0
+
+        for seg in ('text', 'data', 'bss'):
+            segnum = SEGS[seg]
+            for i, module in enumerate(self.modules):
+                modsym: list[Symbol] = []
+                for symbol in module.symtab.values():
+                    if (symbol.flags & SymFlag.SEG) != segnum:
+                        continue
+                    newsym = symbol.copy()
+                    newsym.value += offset
+                    modsym.append(newsym)
+                if seg == 'bss':
+                    offset += module.bss_len
+                else:
+                    offset += module.seglen(getattr(module, seg))
+                self.modsyms[i].update({sym.name: sym for sym in modsym})
+
+        for modtab in self.modsyms:
+            for sym in modtab.values():
+                if sym.flags & SymFlag.EXPORT:
+                    self.symtab[sym.name] = sym

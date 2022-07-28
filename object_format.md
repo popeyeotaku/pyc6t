@@ -30,7 +30,8 @@ A segment reference record takes the negation of its length byte as various flag
 - *Bit 1*: set if hibyte, clear if lobyte
 - *Bit 2*: set if symbol table refernce, clear if integer only
 - *Bit 3*: set if bit1 should be used, clear if bit1 should be ignored
-- *Bits 4-6*: reserved for future use.
+- *Bit 4*: always set
+- *Bits 5-6*: reserved for future use.
 
 If bit2 is set, the following 8 bytes are used as a null-filled symbol name, followed by a 2byte offset integer.
 
