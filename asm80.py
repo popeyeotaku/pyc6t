@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import overload
 
 from util import word
-from linker import Reference, RefFlag, Symbol as LinkSym, SymFlag, Module, SEGS
+from linker import Linker, Reference, RefFlag, Symbol as LinkSym, SymFlag, Module, SEGS
 
 PSEUDOS: tuple[str] = (
     '.text', '.data', '.string', '.bss',
@@ -291,12 +291,13 @@ class Assembler:
                 flags = RefFlag.BYTE if cmd == '.byte' else 0
                 for arg in args:
                     argflags = arg.flags & (RefFlag.HI | RefFlag.HILO)
-                    if arg.symbol:
+                    ref = Reference(flags | argflags, arg.name, arg.con)
+                    if ref.symbol:
                         self.add(
                             Reference(flags | argflags, arg.name, arg.con)
                         )
                     else:
-                        self.add(arg.resolve(0))
+                        self.add(ref.resolve(0))
             case '.common':
                 if len(args) != 2:
                     self.error('bad operand count')
@@ -316,7 +317,7 @@ class Assembler:
                         self.error('bad symbol')
                         return
                     if arg.name not in self.symtab:
-                        self.error('must export AFTER define')
+                        self.error(f'must export AFTER define: {arg.name}')
                         return
                     self.symtab[arg.name].flags |= SymFlag.EXPORT
             case _:
@@ -387,15 +388,16 @@ class Assembler:
                         mask <<= 3
                     code |= mask
                 case Mode.IMMWORD | Mode.IMMBYTE:
+                    refmode = arg.flags & ~RefFlag.BYTE
+                    if mode == Mode.IMMBYTE:
+                        refmode |= RefFlag.BYTE
+
                     if arg.symbol:
-                        refmode = arg.flags & ~RefFlag.BYTE
-                        if mode == Mode.IMMBYTE:
-                            refmode |= RefFlag.BYTE
                         outargs.append(Reference(
                             refmode, arg.name, word(arg.con)
                         ))
                     else:
-                        con = arg.resolve(0)
+                        con = Reference(refmode, '', arg.con).resolve(0)
                         outargs.append(con)
 
         code = word(code) & 0xFF
@@ -404,18 +406,45 @@ class Assembler:
     def addlabel(self, name: str) -> None:
         """Add a label to the symbol table."""
         self.addsym(Symbol(
-            name, self.curpc, self.curseg, label=True
+            self.segnum, name, self.curpc, label=True
         ))
 
     def assemble(self) -> Module | None:
         """Try to assemble the source text. If any errors were encountered,
         return None. Else, return the module.
         """
+        self.index = 0
         while self.text:
             self.statement()
         if self.errcount:
             return None
+
+        if self.errcount:
+            return None
+
         self.module.symtab.clear()
         for sym in self.symtab.values():
-            self.module.symtab[sym.name] = sym.linksym()
+            if sym.label:
+                self.module.symtab[sym.name] = sym.linksym()
+        self.module.bss_len = Module.seglen(self.bss_seg)
         return self.module
+
+
+def test(path: str | Path):
+    """A simple test program."""
+    path = Path(path)
+    assembler = Assembler(path.read_text('utf8'))
+    module = assembler.assemble()
+    linker = Linker(module)
+    out = path.with_suffix('.bin')
+    out.write_bytes(linker.link())
+
+    out = path.with_suffix('.sym')
+    symtab = ''
+    for symbol in sorted(linker.symtab.values(), key=lambda s: s.value):
+        symtab += f'{symbol.name}: ${hex(symbol.value)}\n'
+    out.write_text(symtab, 'utf8')
+
+
+if __name__ == "__main__":
+    test('hello.s')

@@ -253,7 +253,7 @@ class Linker:
     def __init__(self, *modules: Module) -> None:
         self.modules = list(modules)
         self.symtab: dict[str, Symbol] = {}
-        self.modsyms: list[dict[str, Symbol]]
+        self.modsyms: list[dict[str, Symbol]] = []
         self.common_bss: int = 0
         self.commons: list[Symbol] = []
 
@@ -269,7 +269,7 @@ class Linker:
         return out + bytes(sum((mod.bss_len for mod in self.modules)))
 
     def resolve(self, offset: int, modsym: dict[str, Symbol],
-                seg: list[bytes | Reference]):
+                seg: list[bytes | Reference]) -> bytes:
         """Resolve all references in a given segment."""
         out = bytes()
         for elem in seg:

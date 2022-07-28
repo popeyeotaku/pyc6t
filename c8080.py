@@ -406,7 +406,8 @@ class Code80(CodeGen):
     def getasm(self) -> str:
         out = ASM_HEADER
         for seg in SEGMENTS:
-            out += seg + '\n'
+            if seg != '.string':
+                out += '\t' + seg + '\n'
             out += self.state.segs[seg]
         return out
 
