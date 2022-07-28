@@ -328,22 +328,24 @@ def funcdef(parser: Parser, name: str, typestr: TypeString,
     parser.exitlocal()
 
 
-def targtype(typestr: TypeString) -> tuple[str, int]:
+def targtype(typestr: TypeString) -> tuple[str, int, int]:
     """Determine the storage type from the given type string - used in
-    initializers. Returns the modifier character, and the size of it in
-    bytes.
+    initializers. Returns the modifier character, the size of its storage,
+    and the real size of the type.
     """
     assert len(typestr) >= 1
     size = tysize(typestr)
     match typestr[0].type:
         case 'float':
-            return 'f', size
+            return 'f', size, size
         case 'double':
-            return 'd', size
+            return 'd', size, size
         case 'char':
-            return 'c', size
+            return 'c', size, size
+        case 'struct':
+            return 'w', tysize([Int6]), tysize(typestr)
         case 'point' | 'int' | 'struct' | 'func':
-            return 'w', tysize([Int6])
+            return 'w', tysize([Int6]), size
         case 'array':
             assert len(typestr) > 1
             return targtype(typestr[1:])
@@ -411,6 +413,7 @@ def outinit(parser: Parser, cmd: str, node: Node, offset: int,
             else:
                 offstr = ''
             if node.label == 'string':
+                assert isinstance(node.value, bytes)
                 strbytes = ','.join((str(b) for b in node.value))
                 if asmstring:
                     goseg(parser, 'string')
@@ -419,6 +422,7 @@ def outinit(parser: Parser, cmd: str, node: Node, offset: int,
                     val = label
                     pseudo(parser, f'dc {strbytes}')
                 else:
+                    assert cmd[-1] == 'c'
                     val = strbytes
             else:
                 assert isinstance(node.value, Symbol)
@@ -430,13 +434,13 @@ def outinit(parser: Parser, cmd: str, node: Node, offset: int,
             raise ValueError
 
 
-def datainit(parser: Parser, name: str, typestr: TypeString) -> TypeString:
+def datainit(parser: Parser, typestr: TypeString) -> TypeString:
     """Handle a data initializer, returning a typestring that may be modified.
     """
     # At this point, the next input token will be the first one of the initializer.
 
     # pylint: disable=unpacking-non-sequence
-    cmd, storesize = targtype(
+    cmd, storesize, realsize = targtype(
         typestr)
     cmd = f'd{cmd}'
 
@@ -451,7 +455,7 @@ def datainit(parser: Parser, name: str, typestr: TypeString) -> TypeString:
             parser.unsee(token)
             node, offset = initexpr(parser)
             outinit(parser, cmd, node, offset)
-            elembytes += tysize(node.typestr)
+            elembytes += storesize
             return True
         parser.list('}', parselist)
     else:
@@ -460,24 +464,26 @@ def datainit(parser: Parser, name: str, typestr: TypeString) -> TypeString:
                 typestr[1].type == 'char':
             asmstr = False
             assert isinstance(node, Leaf)
+            assert isinstance(node.value, bytes)
+            incbytes = len(node.value)
         else:
+            incbytes = storesize
             asmstr = True
         outinit(parser, cmd, node, offset, asmstr)
-        elembytes += tysize(node.typestr)
+        elembytes += incbytes
 
-    numelems = ceil(elembytes / storesize)
-    elemsize = storesize * numelems
+    numelems = ceil(elembytes / realsize)
+    elemsize = realsize * numelems
     if elemsize > totalsize:
         typestr = typestr.copy()
         assert len(typestr) >= 1
         if typestr[0].type == 'array':
             # Adjust array size
             assert len(typestr) >= 2
-            newelems = ceil(elemsize / tysize(typestr[1:]))
-            typestr[0] = TypeElem('array', newelems)
-            totalsize = tysize(typestr)
-    if elemsize < totalsize:
-        asm(parser, f'.ds {totalsize - elemsize}')
+            typestr[0] = TypeElem('array', numelems)
+            totalsize = elemsize
+    if totalsize > elembytes:
+        asm(parser, f'.ds {totalsize - elembytes}')
 
     return typestr
 
@@ -495,7 +501,7 @@ def datadef(parser: Parser, name: str, typestr: TypeString) -> None:
         # Initializer
         goseg(parser, 'data')
         deflab(parser, f'_{name}')
-        typestr = datainit(parser, name, typestr)
+        typestr = datainit(parser, typestr)
     symbol = Symbol(
         name,
         'extern',
