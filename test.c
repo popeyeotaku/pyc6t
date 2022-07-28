@@ -1,14 +1,12 @@
-struct foobar {
+char foo[] "foo", bar[] "bar";
+
+char foobar[] "foobar";
+
+struct barfoo {
+    int bar;
     int foo;
-    int (*bar)();
-    struct foobar *next;
+} barfoo[2] {
+    1, 2,
+    3, 4,
+    5
 };
-
-foobar(head, foo)
-{
-    register *pnt, f;
-
-    for (pnt = head, f = foo; pnt; pnt = pnt->next)
-        if (pnt->foo == f)
-            (*pnt->bar)(f);
-}
