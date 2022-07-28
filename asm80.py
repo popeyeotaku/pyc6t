@@ -206,6 +206,10 @@ class Assembler:
     def atom(self) -> str | int | None:
         """Parse a name or number."""
         self.skipws()
+        if match := self.matchre(r"'([^'])'"):
+            assert isinstance(match[1], str)
+            con = match[1].encode('ascii')[0]
+            return con
         if match := self.matchre(r'(-?)\$([\da-fA-F]+)'):
             con = int(match[1] + match[2], base=16)
             con = word(con)

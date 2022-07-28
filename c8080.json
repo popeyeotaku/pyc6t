@@ -708,5 +708,13 @@
         "require": ["cond"],
         "regs": "SPECIAL",
         "action": ""
+    },
+    {
+        "require": ["div"],
+        "action": "call cdiv"
+    },
+    {
+        "require": ["mod"],
+        "action": "call cmod"
     }
 ]

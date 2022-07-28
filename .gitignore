@@ -18,3 +18,6 @@ ed.s
 hello.s
 test.s
 wrap.s
+io80.c
+math.c
+math.s

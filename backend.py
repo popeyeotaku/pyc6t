@@ -55,6 +55,8 @@ NODECHILDREN: dict[str, int] = {
     'predec': 2,
     'preinc': 2,
     'comma': 2,
+    'div': 2,
+    'mod': 2,
 }
 
 

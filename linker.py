@@ -312,6 +312,11 @@ class Linker:
                 else:
                     offset += module.seglen(getattr(module, seg))
                 self.modsyms[i].update({sym.name: sym for sym in modsym})
+            match seg:
+                case 'text' | 'data':
+                    self.symtab[f'_e{seg}'] = Symbol(SymFlag.EXPORT,
+                                                     f'_e{seg}',
+                                                     offset)
 
         for modtab in self.modsyms:
             for sym in modtab.values():
@@ -356,3 +361,7 @@ class Linker:
                     del modsym[name]
 
         self.symtab.update(resolved)
+
+        self.symtab['_end'] = Symbol(
+            SymFlag.EXPORT, '_end', offset
+        )
