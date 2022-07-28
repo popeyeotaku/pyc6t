@@ -164,7 +164,7 @@ class Module:
         assert isinstance(namebytes, bytes)
         i += NAMELEN
         namebytes.removesuffix(b'\x00')
-        return namebytes.decode('ascii')
+        return namebytes.decode('ascii'), i
 
     def _insyms(self, source: bytes, i: int) -> tuple[dict[str, Symbol], int]:
         """Read in the symbol table from the source bytes at the given i
@@ -238,7 +238,14 @@ class Module:
                           self.bss_len)
         for seg in self.text, self.data:
             for elem in seg:
-                out += bytes(elem)
+                if isinstance(elem, bytes):
+                    for i in range(0, len(elem), 127):
+                        cut = elem[i:i+127]
+                        out += bytes([len(cut)]) + cut
+                elif isinstance(elem, Reference):
+                    out += bytes(elem)
+                else:
+                    raise TypeError(elem)
             out += b'\x00'
         for symbol in self.symtab.values():
             out += bytes(symbol)
