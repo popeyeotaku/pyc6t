@@ -169,13 +169,9 @@ div:
     sta i
 divloop:
     ; shift dividend left into remainder
-    mov a,l
-    ral
-    ani $FE
-    mov l,a
-    mov a,h
-    ral
-    mov h,a
+    mov a,h ; high bit of HL into carry
+    rlc
+    dad h
     mov a,c
     ral
     mov c,a
@@ -189,7 +185,7 @@ divloop:
     mov a,b
     sbb d
     sta n+1
-    jc divskip ;??
+    jc divskip ;branches if overflow
     lda n
     mov c,a
     lda n+1
