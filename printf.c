@@ -19,7 +19,7 @@ printf(fmt, args)
         case 's':
             puts(*argpnt++);
             continue;
-        case 'i':
+        case 'd':
             i = *argpnt++;
             if (!i) { putchar('0'); continue;; }
             if (i < 0) {
@@ -39,7 +39,7 @@ putoct(num)
     register n;
 
     if (n = num)
-        putoct((n>>3)&0177777);
+        putoct((n>>3)&~0160000);
     putchar((n&07)+'0');
 }
 

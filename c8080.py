@@ -629,35 +629,17 @@ class Code80(CodeGen):
     def doswitch(self, expr: BackNode, brklab: BackNode,
                  cases: BackNode, tablab: BackNode) -> None:
         """Assemble a switch statement."""
-        node = Node(
-            'call',
-            Node(
-                'extern', value='doswitch'
-            ),
-            Node(
-                'comma',
-                Node(
-                    'extern', value=brklab.value
-                ),
-                Node(
-                    'comma',
-                    Node(
-                        'con', value=cases.value
-                    ),
-                    Node(
-                        'comma',
-                        Node(
-                            'extern', value=tablab.value
-                        ),
-                        Node(
-                            'comma',
-                            self.convert(expr)
-                        )
-                    )
-                )
-            ),
-            value=4
-        )
+        args = [
+            Node('con', value=cases.value),
+            Node('extern', value=brklab.value),
+            Node('extern', value=tablab.value),
+            self.convert(expr),
+        ]
+        args = [Node('arg', node) for node in reversed(args)]
+        node = Node('call',
+                    Node('extern', value='doswitch'),
+                    Node.join('comma', *args),
+                    value=len(args))
         self.eval(node)
 
     def command(self, command: Command, nodestk: list[BackNode]) -> None:

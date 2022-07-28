@@ -295,12 +295,11 @@ class Assembler:
             case '.byte' | '.word':
                 flags = RefFlag.BYTE if cmd == '.byte' else 0
                 for arg in args:
-                    argflags = arg.flags & (RefFlag.HI | RefFlag.HILO)
+                    argflags = arg.flags & (
+                        RefFlag.HI | RefFlag.HILO | RefFlag.SYMBOL)
                     ref = Reference(flags | argflags, arg.name, arg.con)
                     if ref.symbol:
-                        self.add(
-                            Reference(flags | argflags, arg.name, arg.con)
-                        )
+                        self.add(ref)
                     else:
                         self.add(ref.resolve(0))
             case '.common':
@@ -331,9 +330,9 @@ class Assembler:
     def expr(self) -> Reference:
         """Parse an expression."""
         flags: RefFlag = RefFlag.ALWAYS_SET
-        if self.matchlit('<'):
+        if self.matchlit('>'):
             flags |= RefFlag.HILO | RefFlag.HI
-        elif self.matchlit('>'):
+        elif self.matchlit('<'):
             flags |= RefFlag.HILO
             flags &= ~RefFlag.HI
 
@@ -376,7 +375,7 @@ class Assembler:
         """Assemble a given opcode here."""
         opcode = opdict[cmd]
         if len(args) != len(opcode.args):
-            self.error('bad operand length')
+            self.error(f'bad operand length on op {cmd}')
             return
         code = opcode.code
         outargs: list[Reference | bytes] = []

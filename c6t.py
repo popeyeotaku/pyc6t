@@ -147,7 +147,7 @@ def main() -> None:
         syms = ''
         for symbol in sorted(linker.symtab.values(),
                              key=lambda s: s.value):
-            syms += f'{symbol.name}: ${hex(symbol.value)}/{oct(symbol.value)}\n'
+            syms += f'{symbol.name}: ${hex(symbol.value)}/{oct(symbol.value)}/{symbol.value}\n'
         Path(outname).with_suffix('.sym').write_text(syms, 'utf8')
 
 

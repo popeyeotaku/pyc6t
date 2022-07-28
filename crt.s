@@ -73,10 +73,9 @@ cextend:
     .export cextend
     mvi h,0
     mov a,l
-    rlc
-    jnc noextend
+    ora a
+    rp
     dcr h
-noextend:
     ret
 
 _in80:
@@ -106,16 +105,17 @@ outrel:
 
     .bss
 n: .storage 2
-i: .storage 1
+i: .storage 2
 
     .text
 cmult:
     .export cmult
     push b
-    mov b,h
-    mov l,c
+    mov b,d
+    mov c,e
     shld n
-    lxi h,0 ; Don't clear DE since it will get replaced
+    lxi h,0
+    lxi d,0
     mvi a,16
     sta i
 multloop:
@@ -145,7 +145,7 @@ multskip:
     lda i
     dcr a
     sta i
-    jnz multskip
+    jnz multloop
 
     ; Result in DE
     xchg
@@ -189,7 +189,7 @@ divloop:
     mov a,b
     sbb d
     sta n+1
-    jnc divskip ;??
+    jc divskip ;??
     lda n
     mov c,a
     lda n+1
@@ -212,3 +212,95 @@ cmod:
     mov l,c
     pop b
     ret
+
+doswitch:
+    .export doswitch
+    ; on stack, from bottom to top:
+    ; - return address (but we never return)
+    ; - number of cases
+    ; - default addr
+    ; - table addr
+    ; - expression value
+
+    ; table format:
+    ; - two word entries, first is value, second is addr
+
+    ; Need to preserve BC, DE and HL don't matter
+    pop h ; destroy return address
+
+    pop h ; number of cases to I
+    shld i
+    pop h ; default to N
+    shld n
+    pop h ; table addr to HL
+    pop d ; expr value to DE
+    lda i+1
+swloop:
+    ora a
+    jnz swcont
+    lda i
+    ora a
+    jnz swcont
+    ; not found, go to default
+    lhld n
+    pchl
+swcont:
+    mov a,m
+    inx h
+    cmp e
+    jnz swbad
+    mov a,m
+    cmp d
+    jnz swbad
+    ; Found good!
+    inx h ; to target addr
+    mov a,m
+    inx h
+    mov h,m
+    mov l,a
+    pchl ; Jump!
+swbad:
+    ; HL at last byte of table value
+    inx h ; targetlo
+    inx h ; targethi
+    inx h ; next value
+    lda i
+    sui 1
+    sta i
+    lda i+1
+    sbi 0
+    sta i+1
+    jmp swloop
+
+crshift:
+    .export crshift
+    ; Shift HL right DE bits, sign extended
+    mov a,h
+    ora a
+    jp rplus
+rminus: ; Place 1 bit in all high bits
+    mov a,e
+    ora d
+    rz
+    mov a,h
+    stc
+    rar
+    mov h,a
+    mov a,l
+    rar
+    mov l,a
+    dcx d
+    jmp rminus
+rplus: ; Place 0 bit in all high bits
+    mov a,e
+    ora d
+    rz
+    mov a,h
+    rar
+    ani $7F
+    mov h,a
+    mov a,l
+    rar
+    mov l,a
+    dcx d
+    jmp rplus

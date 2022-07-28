@@ -21,3 +21,9 @@ wrap.s
 io80.c
 math.c
 math.s
+math.o
+printf.o
+printf.s
+.gitignore
+io80.s
+io80.o

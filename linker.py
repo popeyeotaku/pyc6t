@@ -262,6 +262,7 @@ class Linker:
         self.symtab: dict[str, Symbol] = {}
         self.modsyms: list[dict[str, Symbol]] = []
         self.common_bss: int = 0
+        self.bsslen:int = 0
         self.commons: list[Symbol] = []
 
     def link(self) -> bytes:
@@ -273,7 +274,7 @@ class Linker:
             for i, module in enumerate(self.modules):
                 out += self.resolve(len(out), self.modsyms[i],
                                     getattr(module, seg))
-        return out + bytes(sum((mod.bss_len for mod in self.modules)))
+        return out + bytes(self.bsslen)
 
     def resolve(self, offset: int, modsym: dict[str, Symbol],
                 seg: list[bytes | Reference]) -> bytes:
@@ -317,6 +318,8 @@ class Linker:
                     self.symtab[f'_e{seg}'] = Symbol(SymFlag.EXPORT,
                                                      f'_e{seg}',
                                                      offset)
+                    top = offset
+
 
         for modtab in self.modsyms:
             for sym in modtab.values():
@@ -324,6 +327,7 @@ class Linker:
                     self.symtab[sym.name] = sym
 
         self._commons(offset)
+        self.bsslen = self.common_bss - top
 
     def _commons(self, offset: int) -> None:
         """Resolve common references."""
