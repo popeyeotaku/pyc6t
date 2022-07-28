@@ -21,7 +21,7 @@ printf(fmt, args)
             continue;
         case 'd':
             i = *argpnt++;
-            if (!i) { putchar('0'); continue;; }
+            if (!i) { putchar('0'); continue; }
             if (i < 0) {
                 i = -i;
                 putchar('-');

@@ -111,7 +111,7 @@ def confold(node: Node) -> Node:
         case 'compl':
             result = word(~children[0])
         case _:
-            return Node
+            return node
     return Leaf('con', node.linenum, [Int6], [], result)
 
 
@@ -341,6 +341,7 @@ def exp13(parser: Parser) -> Node:
     """
     node = exp12(parser)
     while parser.match('?'):
+        assert isinstance(node, Node)
         linenum = parser.curline
         left = exp12(parser)
         parser.need(':')

@@ -477,7 +477,7 @@
         ]
     },
     {
-        "require": ["cmp"],
+        "require": ["ucmp"],
         "action": [
             "mov a,l",
             "sub e",
@@ -488,6 +488,24 @@
         ]
     },
     {
+        "require": ["cmp"],
+        "action": [
+            "mov a,d",
+            "xra h",
+            "jp T1",
+            "xra d",
+            "jm T2",
+            "stc",
+            "jmp T2",
+            "D1",
+            "mov a,e",
+            "sub l",
+            "mov a,d",
+            "sbb h",
+            "D2"
+        ]
+    },
+    {
         "require": ["log"],
         "regs": "ANY",
         "action": [
@@ -495,28 +513,6 @@
             "ora R",
             "lxi R,0",
             "jz T1",
-            "inx R",
-            "D1"
-        ]
-    },
-    {
-        "require": ["great"],
-        "regs": "ANY",
-        "action": [
-            "lxi R,0",
-            "jz T1",
-            "jc T1",
-            "inx R",
-            "D1"
-        ]
-    },
-    {
-        "require": ["ugreat"],
-        "regs": "ANY",
-        "action": [
-            "lxi R,0",
-            "jz T1",
-            "jnc T1",
             "inx R",
             "D1"
         ]
@@ -539,6 +535,17 @@
         "action": ""
     },
     {
+        "require": ["ugreat"],
+        "regs": "ANY",
+        "action": [
+            "lxi R,0",
+            "jz T1",
+            "jnc T1",
+            "inx R",
+            "D1"
+        ]
+    },
+    {
         "require": ["uless"],
         "regs": "ANY",
         "action": [
@@ -550,18 +557,14 @@
         ]
     },
     {
-        "require": ["cstore"],
-        "leftreq": ["extern"],
+        "require": ["ulequ"],
         "regs": "ANY",
         "action": [
-            "mov a,RLOW",
-            "sta LV"
-        ]
-    },
-    {
-        "require": ["cstore"],
-        "action": [
-            "mov m,e"
+            "lxi R,0",
+            "jnz T1",
+            "jc T1",
+            "inx R",
+            "D1"
         ]
     },
     {
@@ -576,47 +579,34 @@
         ]
     },
     {
-        "require": ["gequ"],
-        "regs": "ANY",
-        "action": [
-            "lxi R,0",
-            "jnz T1",
-            "jc T1",
-            "inx R",
-            "D1"
-        ]
+        "require": ["less"],
+        "action": "call cless"
     },
     {
-        "require": ["less"],
-        "regs": "ANY",
-        "action": [
-            "lxi R,0",
-            "jz T1",
-            "jnc T1",
-            "inx R",
-            "D1"
-        ]
+        "require": ["great"],
+        "action": "call cgreat"
+    },
+    {
+        "require": ["gequ"],
+        "action": "call cgequ"
     },
     {
         "require": ["lequ"],
+        "action": "call clequ"
+    },
+    {
+        "require": ["cstore"],
+        "leftreq": ["extern"],
         "regs": "ANY",
         "action": [
-            "lxi R,0",
-            "jnz T1",
-            "jnc T1",
-            "inx R",
-            "D1"
+            "mov a,RLOW",
+            "sta LV"
         ]
     },
     {
-        "require": ["ulequ"],
-        "regs": "ANY",
+        "require": ["cstore"],
         "action": [
-            "lxi R,0",
-            "jnz T1",
-            "jc T1",
-            "inx R",
-            "D1"
+            "mov m,e"
         ]
     },
     {

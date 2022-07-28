@@ -291,12 +291,93 @@ rplus: ; Place 0 bit in all high bits
     mov a,e
     ora d
     rz
+    stc
+    cmc
     mov a,h
     rar
-    ani $7F
     mov h,a
     mov a,l
     rar
     mov l,a
     dcx d
     jmp rplus
+
+cless:
+    mov a,h
+    xra d
+    jp same1
+    xra h
+    jm gequ1
+less1:
+    lxi h,1
+    ret
+same1:
+    mov a,l
+    sub e
+    mov a,h
+    sbb d
+    jc less1
+gequ1:
+    lxi h,0
+    ret
+
+cgequ:
+    mov a,h
+    xra d
+    jp same2
+    xra h
+    jm gequ2
+less2:
+    lxi h,0
+    ret
+same2:
+    mov a,l
+    sub e
+    mov a,h
+    sbb d
+    jc less2
+gequ2:
+    lxi h,0
+    ret
+
+clequ:
+    mov a,h
+    xra d
+    jp same3
+    xra h
+    jm gequ3
+less3:
+    lxi h,1
+    ret
+same3:
+    mov a,l
+    sub e
+    mov a,h
+    sbb d
+    jc less3
+gequ3:
+    jz less3
+    lxi h,0
+    ret
+
+cgreat:
+    mov a,h
+    xra d
+    jp same4
+    xra h
+    jm gequ4
+less4:
+    lxi h,0
+    ret
+same4:
+    mov a,l
+    sub e
+    mov a,h
+    sbb d
+    jc less4
+gequ4:
+    jz less4
+    lxi h,1
+    ret
+
+    .export cless, cgreat, clequ, cgequ

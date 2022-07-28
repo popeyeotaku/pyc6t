@@ -457,10 +457,9 @@ class Code80(CodeGen):
                 children[0] = Node('sub', children[0], children[1])
                 children[1] = None
                 label = 'log' if label == 'nequ' else 'lognot'
-            case 'great' | 'less' | 'ugreat' | 'uless' \
-                    | 'gequ' | 'lequ' | 'ugequ' | 'ulequ':
+            case 'ugreat' | 'uless' | 'ulequ' | 'ugequ':
                 children[0] = Node(
-                    'cmp', children[0], children[1]
+                    'ucmp', children[0], children[1]
                 )
                 children[1] = None
             case 'postinc' | 'preinc' | 'predec' | 'postdec':
@@ -541,7 +540,7 @@ class Code80(CodeGen):
                         assert None not in (expr, left, right)
                         self.evalnode(expr, Reg.HL)
                         lab1, lab2 = self.state.temp(), self.state.temp()
-                        self.asmlines('mov a,l', 'ora h', f'jnz {lab1}')
+                        self.asmlines('mov a,l', 'ora h', f'jz {lab1}')
                         self.evalnode(left, Reg.HL)
                         self.asmlines(f'jmp {lab2}')
                         self.deflabel(lab1)
