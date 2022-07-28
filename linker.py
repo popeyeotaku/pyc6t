@@ -163,7 +163,7 @@ class Module:
         namebytes = struct.unpack_from(STRUCT_NAME, source, i)[0]
         assert isinstance(namebytes, bytes)
         i += NAMELEN
-        namebytes.removesuffix(b'\x00')
+        namebytes = namebytes.rstrip(b'\x00')
         return namebytes.decode('ascii'), i
 
     def _insyms(self, source: bytes, i: int) -> tuple[dict[str, Symbol], int]:

@@ -1,6 +1,7 @@
 """Intel 8080 linking assembler
 """
 
+from argparse import ArgumentParser
 import json
 import re
 from dataclasses import dataclass, field
@@ -9,7 +10,7 @@ from pathlib import Path
 from typing import overload
 
 from util import word
-from linker import Linker, Reference, RefFlag, Symbol as LinkSym, SymFlag, Module, SEGS
+from linker import Reference, RefFlag, Symbol as LinkSym, SymFlag, Module, SEGS
 
 PSEUDOS: tuple[str] = (
     '.text', '.data', '.string', '.bss',
@@ -122,7 +123,7 @@ class Assembler:
     """Constructs an assembled module from assembly source code."""
 
     def __init__(self, source: str, index: int = 0):
-        self.source = source
+        self.source = source + '\n'  # some matches can fail if not
         self.index = index
         self.module = Module()
         self.segname: str = 'text'
@@ -205,11 +206,11 @@ class Assembler:
     def atom(self) -> str | int | None:
         """Parse a name or number."""
         self.skipws()
-        if match := self.matchre(r'\$([\da-fA-F]+)'):
-            con = int(match[1], base=16)
+        if match := self.matchre(r'(-?)\$([\da-fA-F]+)'):
+            con = int(match[1] + match[2], base=16)
             con = word(con)
             return con
-        if match := self.matchre(r'\d+'):
+        if match := self.matchre(r'-?\d+'):
             return word(int(match[0]))
         if match := self.matchre(r'[.a-zA-Z_][.a-zA-Z_0-9]*'):
             return match[0]
@@ -302,7 +303,7 @@ class Assembler:
                 if len(args) != 2:
                     self.error('bad operand count')
                     return
-                if not (args[0].symbol and args[1].con == 0):
+                if not (args[0].symbol and not args[1].symbol):
                     self.error('bad common')
                     return
                 if args[1].symbol is None:
@@ -359,6 +360,10 @@ class Assembler:
             self.error('missing primary expression')
             return Reference(RefFlag.ALWAYS_SET, '', 0)
         if isinstance(atom, str):
+            if atom in self.symtab and not self.symtab[atom].label:
+                # Replace a non-label with its value
+                return Reference(RefFlag.ALWAYS_SET, '',
+                                 self.symtab[atom].value)
             return Reference(RefFlag.ALWAYS_SET | RefFlag.SYMBOL, atom, 0)
         assert isinstance(atom, int)
         return Reference(RefFlag.ALWAYS_SET, '', word(atom))
@@ -430,21 +435,23 @@ class Assembler:
         return self.module
 
 
-def test(path: str | Path):
-    """A simple test program."""
-    path = Path(path)
-    assembler = Assembler(path.read_text('utf8'))
-    module = assembler.assemble()
-    linker = Linker(module)
-    out = path.with_suffix('.bin')
-    out.write_bytes(linker.link())
+cmdline = ArgumentParser()
+cmdline.add_argument('sources', nargs=1)
 
-    out = path.with_suffix('.sym')
-    symtab = ''
-    for symbol in sorted(linker.symtab.values(), key=lambda s: s.value):
-        symtab += f'{symbol.name}: ${hex(symbol.value)}\n'
-    out.write_text(symtab, 'utf8')
+
+def main():
+    """For using asm80 from the command line."""
+    names = cmdline.parse_args()
+    for source in names.sources:
+        assert isinstance(source, str)
+        path = Path(source)
+        print(path)
+        assembler = Assembler(path.read_text('utf8'))
+        module = assembler.assemble()
+        if not module:
+            continue
+        path.with_suffix('.o').write_bytes(bytes(module))
 
 
 if __name__ == "__main__":
-    test('hello.s')
+    main()

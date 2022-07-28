@@ -404,7 +404,7 @@ class Code80(CodeGen):
         self.state = CodeState()
 
     def getasm(self) -> str:
-        out = ASM_HEADER
+        out = ''
         for seg in SEGMENTS:
             if seg != '.string':
                 out += '\t' + seg + '\n'
@@ -435,6 +435,9 @@ class Code80(CodeGen):
         label = node.label
         value = node.value
         match label:
+            case 'cond':
+                children[0] = Node.join('comma', *children[0:3])
+                children[1] = None
             case 'asnadd' | 'asnsub' | 'asnmult' | 'asndiv' | 'asnmod' \
                     | 'asnrshift' | 'asnlshift' | 'asnand' | 'asneor' | 'asnor' \
                     | 'casnadd' | 'casnsub' | 'casnmult' | 'casndiv' | 'casnmod' \
@@ -532,6 +535,18 @@ class Code80(CodeGen):
                     self.asmlines('pop d')
             case TRegs.SPECIAL:
                 match node.label:
+                    case 'cond':
+                        expr, left, right = node.left.left, \
+                            node.left.right.left, node.left.right.right.left
+                        assert None not in (expr, left, right)
+                        self.evalnode(expr, Reg.HL)
+                        lab1, lab2 = self.state.temp(), self.state.temp()
+                        self.asmlines('mov a,l', 'ora h', f'jnz {lab1}')
+                        self.evalnode(left, Reg.HL)
+                        self.asmlines(f'jmp {lab2}')
+                        self.deflabel(lab1)
+                        self.evalnode(right, Reg.HL)
+                        self.deflabel(lab2)
                     case 'logor':
                         lab = self.state.temp()
                         self.evalnode(left, Reg.HL)

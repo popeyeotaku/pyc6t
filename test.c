@@ -1,12 +1,34 @@
-char foo[] "foo", bar[] "bar";
+main(argc, argv) char **argv;
+{
+    register i;
 
-char foobar[] "foobar";
+    i = 0;
+    while (--argc) i =+ atoi(*++argv);
+    return (i);
+}
 
-struct barfoo {
-    int bar;
-    int foo;
-} barfoo[2] {
-    1, 2,
-    3, 4,
-    5
-};
+atoi(string)
+{
+    register char *pnt;
+    register i;
+    register neg;
+
+    pnt = string;
+    i = neg = 0;
+
+    while (*pnt && !digit(*pnt) && *pnt != '-') pnt++;
+    if (*pnt == '-') {
+        neg = -1;
+        pnt++;
+    }
+    
+    while (digit(*pnt))
+        i = (i * 10) + (*pnt++ - '0');
+    
+    return (neg ? -i : i);
+}
+
+digit(c)
+{
+    return ('0' <= c && c <= '9');
+}

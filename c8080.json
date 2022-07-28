@@ -9,7 +9,7 @@
         "require": ["lenautos"],
         "regs": "SPECIAL",
         "action": [
-            "lxi h,~V+1",
+            "lxi h,-V",
             "dad sp",
             "sphl"
         ]
@@ -461,7 +461,7 @@
         "rightreq": ["con"],
         "regs": "SPECIAL",
         "action": [
-            "lxi d,~RV+1",
+            "lxi d,-RV",
             "dad d"
         ]
     },
@@ -678,19 +678,7 @@
     {
         "require": ["rshift"],
         "action": [
-            "D1",
-            "mov a,e",
-            "ora d",
-            "jz T2",
-            "mov a,h",
-            "rrc",
-            "ani $7F",
-            "mov h,a",
-            "mov a,l",
-            "rar",
-            "mov l,a",
-            "jmp T1",
-            "D2"
+            "call crshift"
         ]
     },
     {
@@ -715,5 +703,10 @@
         "require": ["ijmp"],
         "regs": "HL",
         "action": "pchl"
+    },
+    {
+        "require": ["cond"],
+        "regs": "SPECIAL",
+        "action": ""
     }
 ]

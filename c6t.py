@@ -72,20 +72,23 @@ cmdparse.add_argument('-P', help='save preprocessed verisons of the source'
 cmdparse.add_argument('-c', help='save object files only, no linkage',
                       action='store_true', default=False, dest='nolink')
 cmdparse.add_argument('-o', help='output executable name', nargs=1,
-                      default='a.out', dest='outname')
+                      default=['a.out'], dest='outname')
 cmdparse.add_argument('-S', help='save assembly output only',
                       action='store_true', default=False, dest='outasm')
 cmdparse.add_argument('-Y', help='output symbol files',
                       action='store_true', default=False, dest='outsym')
 cmdparse.add_argument('-R', help='output intermediate format file',
                       action='store_true', default=False, dest='outir')
+cmdparse.add_argument('--crt', help="set the file standard support routines"
+                      "are in",
+                      default=['crt.o'], dest='crt')
 cmdparse.add_argument('sources', nargs='+', help='the C6T source files')
 
 
 def main() -> None:
     """Main called from command line."""
     if DEBUG:
-        argv = '-o hello.bin -Y hello.c'.split()
+        argv = '-Y test.c'.split()
     else:
         argv = sys.argv[1:]
     args = cmdparse.parse_args(argv)
@@ -93,6 +96,7 @@ def main() -> None:
     for source in args.sources:
         assert isinstance(source, str)
         path = Path(source)
+        print(path)
         if path.suffix == '.c':
             if args.preproc:
                 out = preproc.preproc(path.read_text('utf8'))
@@ -122,8 +126,19 @@ def main() -> None:
             modules.append(module)
         else:
             module = Module().from_bytes(path.read_bytes())
+            modules.insert(0, module)
     if args.nolink or not modules:
         return
+    crtfile = Path(args.crt[0])
+    print(crtfile)
+    if crtfile.suffix == '.s':
+        assembler = Assembler(crtfile.read_text('utf8'))
+        module = assembler.assemble()
+        if module is None:
+            return
+    else:
+        module = Module().from_bytes(crtfile.read_bytes())
+    modules.insert(0, module)
     linker = Linker(*modules)
     linked = linker.link()
     outname = args.outname[0]

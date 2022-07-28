@@ -11,5 +11,10 @@ lint.bat
 run.bat
 *.bin
 *.sym
-*.s
 hello.o
+a.out
+crt.o
+ed.s
+hello.s
+test.s
+wrap.s
